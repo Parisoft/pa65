@@ -6,22 +6,29 @@ import com.parisoft.pa65.pojo.Call;
 import com.parisoft.pa65.pojo.Free;
 import com.parisoft.pa65.pojo.Function;
 import com.parisoft.pa65.pojo.Ref;
+import net.sourceforge.argparse4j.ArgumentParsers;
+import net.sourceforge.argparse4j.inf.ArgumentParser;
+import net.sourceforge.argparse4j.inf.ArgumentParserException;
+import net.sourceforge.argparse4j.inf.Namespace;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static java.lang.System.lineSeparator;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.util.regex.Pattern.CASE_INSENSITIVE;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
@@ -99,45 +106,47 @@ public class PA65 {
         return builder.toString();
     }
 
-    public void createHeap(String main, Collection<File> files) throws IOException {
-        Map<String, Function> functions = readFunctions(files);
+    public void createHeap(Collection<String> vectors, Collection<File> input) throws IOException {
+        Map<String, Function> functions = readFunctions(input);
 
-        Function function = functions.values()
-                .stream()
-                .filter(func -> func.getName().equals(main))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Main function not found"));
+        for (String vector : vectors) {
+            Function function = functions.values()
+                    .stream()
+                    .filter(func -> func.getName().equals(vector))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Vector function not found: " + vector));
 
-        do {
-            Object stmt = function.getStmts().poll();
+            do {
+                Object stmt = function.getStmts().poll();
 
-            if (stmt == null) {
-                heap.free(function);
-                continue;
-            } else if (stmt instanceof Alloc) {
-                heap.allocByFirstFit((Alloc) stmt);
-            } else if (stmt instanceof Ref) {
-                refByFunc.computeIfAbsent(function.getName(), s -> new ArrayList<>()).add((Ref) stmt);
-            } else if (stmt instanceof Free) {
-                heap.free(((Free) stmt).getVariables());
-            } else if (stmt instanceof Call) {
+                if (stmt == null) {
+                    heap.free(function);
+                    continue;
+                } else if (stmt instanceof Alloc) {
+                    heap.allocByFirstFit((Alloc) stmt);
+                } else if (stmt instanceof Ref) {
+                    refByFunc.computeIfAbsent(function.getName(), s -> new ArrayList<>()).add((Ref) stmt);
+                } else if (stmt instanceof Free) {
+                    heap.free(((Free) stmt).getVariables());
+                } else if (stmt instanceof Call) {
+                    stack.push(function);
+                    Function called = functions.get(((Call) stmt).getFunction());
+
+                    if (called == null) { // label not defined with .func
+                        continue;
+                    }
+
+                    if (called.equals(function) || stack.contains(called)) { // recursion
+                        continue;
+                    }
+
+                    stack.push(called);
+                    continue;
+                }
+
                 stack.push(function);
-                Function called = functions.get(((Call) stmt).getFunction());
-
-                if (called == null) { // label not defined with .func
-                    continue;
-                }
-
-                if (called.equals(function) || stack.contains(called)) { // recursion
-                    continue;
-                }
-
-                stack.push(called);
-                continue;
-            }
-
-            stack.push(function);
-        } while ((function = stack.poll()) != null);
+            } while ((function = stack.poll()) != null);
+        }
     }
 
     private static Map<String, Function> readFunctions(Collection<File> files) throws IOException {
@@ -191,9 +200,40 @@ public class PA65 {
     }
 
     public static void main(String[] args) throws IOException {
-        List<File> files = Stream.of(args).skip(1).map(File::new).collect(toList());
+        ArgumentParser parser = ArgumentParsers.newFor("pa65").build()
+                .defaultHelp(true)
+                .description("Pseudo memory allocator for ca65 projects");
+        parser.addArgument("-r", "--reset").required(true).help("Name of the reset or main function");
+        parser.addArgument("-n", "--nmi").required(false).help("Name of the nmi function");
+        parser.addArgument("-i", "--irq").required(false).help("Name of the irq function");
+        parser.addArgument("-o", "--output").required(false).help("Path to the generated file. Omit to print the file content to the standard output.");
+        parser.addArgument("file").nargs("+").help("Input source files in ca65 format");
+
+        Namespace namespace = null;
+
+        try {
+            namespace = parser.parseArgs(args);
+        } catch (ArgumentParserException e) {
+            parser.handleError(e);
+            System.exit(1);
+        }
+
+        List<String> vectors = new ArrayList<>(3);
+        vectors.add(namespace.getString("reset"));
+        vectors.add(namespace.getString("nmi"));
+        vectors.add(namespace.getString("irq"));
+        vectors.removeIf(Objects::isNull);
+
+        List<File> input = namespace.getList("file").stream().map(Object::toString).map(File::new).collect(toList());
+        String output = namespace.getString("output");
+
         PA65 pa65 = new PA65();
-        pa65.createHeap(args[0], files);
-        System.out.println(pa65);
+        pa65.createHeap(vectors, input);
+
+        if (output != null) {
+            Files.write(Paths.get(output), pa65.toString().getBytes(), CREATE, TRUNCATE_EXISTING);
+        } else {
+            System.out.println(pa65);
+        }
     }
 }
