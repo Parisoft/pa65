@@ -182,6 +182,7 @@ public class PA65 {
                     for (int i = 1; i < tokens.length - 1; i++) {
                         free.getVariables().add(absNameOf(function, tokens[i].trim()));
                     }
+                    function.getStmts().add(free);
                 } else if (FUNC_CLOSE_PATTERN.matcher(line).matches()) {
                     function = null;
                 }

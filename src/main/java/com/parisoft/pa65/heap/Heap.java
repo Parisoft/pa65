@@ -76,7 +76,7 @@ public class Heap {
             Block free = new Block();
             free.setSize(block.getSize());
             free.setOffset(block.getOffset());
-            heap.add(i, block);
+            heap.add(i, free);
         }
 
         block.setFinished(true);
