@@ -40,7 +40,7 @@ public class PA65 {
     private static final Pattern ALLOC_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?\\.palloc\\s+([^,\\s]+)\\s*,\\s*(\\w+)\\s*,\\s*([\\d$%]+).*", CASE_INSENSITIVE);
     private static final Pattern REF_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?\\.pref\\s+(\\w+)\\s*,\\s*(\\w+::\\w+).*", CASE_INSENSITIVE);
     private static final Pattern CALL_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?(jsr|jmp|jeq|jne|jmi|jpl|jcs|jcc|jvs|jvc)\\s+(\\w+)(?:[\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
-    private static final Pattern FREE_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?\\.pfree\\s+(\\w+)(?:\\s*,\\s*(\\w+))*(?:[\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
+    private static final Pattern FREE_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?\\.pfree(?:\\s+(\\w+)(?:\\s*,\\s*(\\w+))*)?(?:[\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
     private static final Pattern COMMA_PATTERN = Pattern.compile(",");
 
     private final Heap heap = new Heap();
@@ -50,7 +50,7 @@ public class PA65 {
     private final Collection<String> vectors;
 
     public PA65(Collection<String> vectors, Collection<File> input) throws IOException {
-        this.functions = readFunctions(input);
+        this.functions = parseFunctions(input);
         this.vectors = vectors;
     }
 
@@ -135,7 +135,11 @@ public class PA65 {
             } else if (stmt instanceof Ref) {
                 refByFunc.computeIfAbsent(function.getName(), s -> new ArrayList<>()).add((Ref) stmt);
             } else if (stmt instanceof Free) {
-                heap.free(((Free) stmt).getVariables());
+                if (((Free) stmt).getVariables().isEmpty()) {
+                    heap.free(function);
+                } else {
+                    heap.free(((Free) stmt).getVariables());
+                }
             } else if (stmt instanceof Call) {
                 Function called = functions.get(((Call) stmt).getFunction());
 
@@ -166,7 +170,7 @@ public class PA65 {
         heap.free(function);
     }
 
-    private static Map<String, Function> readFunctions(Collection<File> files) throws IOException {
+    private static Map<String, Function> parseFunctions(Collection<File> files) throws IOException {
         Map<String, Function> functions = new LinkedHashMap<>();
 
         for (File file : files) {
@@ -193,8 +197,14 @@ public class PA65 {
                     function.getStmts().add(new Call(matcher.group(2), !matcher.group(1).equalsIgnoreCase("jsr")));
                 } else if ((matcher = FREE_PATTERN.matcher(line)).matches()) {
                     Free free = new Free();
-                    free.getVariables().add(absNameOf(function, matcher.group(1)));
-                    free.getVariables().add(absNameOf(function, matcher.group(2)));
+                    String var1 = matcher.group(1);
+                    String var2 = matcher.group(2);
+                    if (var1 != null) {
+                        free.getVariables().add(absNameOf(function, var1));
+                    }
+                    if (var2 != null) {
+                        free.getVariables().add(absNameOf(function, var2));
+                    }
                     String[] tokens = COMMA_PATTERN.split(line);
                     for (int i = 1; i < tokens.length - 1; i++) {
                         free.getVariables().add(absNameOf(function, tokens[i].trim()));
