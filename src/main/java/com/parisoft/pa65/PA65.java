@@ -58,15 +58,18 @@ public class PA65 {
             builder.append("\t.ifndef ").append(heapNameOf(heap.getBlocksBySegment().keySet().iterator().next())).append(lineSeparator())
                     .append(lineSeparator());
             heap.getBlocksBySegment().forEach((segment, heap) -> {
-                if (segment.startsWith(".")) {
-                    builder.append("\t").append(segment).append(lineSeparator());
-                } else {
-                    builder.append("\t").append(".segment ").append(segment).append(lineSeparator());
-                }
-
                 int heapSize = heap.stream().mapToInt(block -> block.getOffset() + block.getSize()).max().orElse(0);
-                builder.append(heapNameOf(segment)).append(":\t.res ").append("$").append(Integer.toHexString(heapSize)).append(lineSeparator())
-                        .append(lineSeparator());
+
+                if (heapSize > 0) {
+                    if (segment.startsWith(".")) {
+                        builder.append("\t").append(segment).append(lineSeparator());
+                    } else {
+                        builder.append("\t").append(".segment ").append(segment).append(lineSeparator());
+                    }
+
+                    builder.append(heapNameOf(segment)).append(":\t.res ").append("$").append(Integer.toHexString(heapSize)).append(lineSeparator())
+                            .append(lineSeparator());
+                }
             });
             builder.append("\t.endif").append(lineSeparator())
                     .append(lineSeparator());
