@@ -1,15 +1,14 @@
 package com.parisoft.pa65.pojo;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
-import java.util.Queue;
 
 public class Function {
 
     private String name;
 
-    private Deque<Object> stmts = new ArrayDeque<>();
+    private List<Object> stmts = new ArrayList<>();
 
     public Function(String name) {
         this.name = name;
@@ -19,7 +18,7 @@ public class Function {
         return name;
     }
 
-    public Deque<Object> getStmts() {
+    public List<Object> getStmts() {
         return stmts;
     }
 

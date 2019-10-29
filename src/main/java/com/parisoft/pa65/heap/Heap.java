@@ -16,6 +16,7 @@ import static java.util.stream.Collectors.toList;
 
 public class Heap {
 
+    private final Map<String, List<Block>> tmpHeapBySegment = new HashMap<>();
     private final Map<String, List<Block>> execHeapBySegment = new HashMap<>();
     private final Map<String, List<Block>> finalHeapBySegment = new HashMap<>();
 
@@ -28,6 +29,33 @@ public class Heap {
                 .stream()
                 .flatMap(List::stream)
                 .collect(groupingBy(Block::getFunction));
+    }
+
+    public void save(Function function){
+        List<Block> blocks = execHeapBySegment.values()
+                .stream()
+                .flatMap(List::stream)
+                .filter(block -> block.belongsTo(function))
+                .collect(toList());
+        blocks.forEach(this::save);
+    }
+
+    private void save(Block block) {
+        free(block, tmpHeapBySegment);
+    }
+
+    public void load(Function function){
+        List<Block> blocks = tmpHeapBySegment.values()
+                .stream()
+                .flatMap(List::stream)
+                .filter(block -> block.belongsTo(function))
+                .collect(toList());
+        blocks.forEach(this::load);
+    }
+
+    private void load(Block block) {
+        tmpHeapBySegment.get(block.getSegment()).remove(block);
+        allocByFirstFit(new Alloc(block));
     }
 
     public void free(Function function){
@@ -50,7 +78,11 @@ public class Heap {
         }
     }
 
-    public void free(Block block) {
+    private void free(Block block) {
+        free(block, finalHeapBySegment);
+    }
+
+    private void free(Block block, Map<String, List<Block>> heapBySegment) {
         List<Block> heap = execHeapBySegment.get(block.getSegment());
         int i = IntStream.range(0, heap.size()).filter(value -> heap.get(value).equals(block)).findFirst().orElse(-1);
 
@@ -80,9 +112,10 @@ public class Heap {
         }
 
         block.setFinished(true);
-        finalHeapBySegment.computeIfAbsent(block.getSegment(), s -> newHeap(false)).add(block);
+        heapBySegment.computeIfAbsent(block.getSegment(), s -> newHeap(false)).add(block);
     }
 
+    @SuppressWarnings("SuspiciousListRemoveInLoop")
     public void allocByFirstFit(Alloc alloc) {
         List<Block> heap = execHeapBySegment.computeIfAbsent(alloc.getSegment(), s -> newHeap(true));
 

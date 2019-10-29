@@ -39,13 +39,20 @@ public class PA65 {
     private static final Pattern FUNC_CLOSE_PATTERN = Pattern.compile("\\.endfunc([\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
     private static final Pattern ALLOC_PATTERN = Pattern.compile("\\.palloc\\s+([^,\\s]+)\\s*,\\s*(\\w+)\\s*,\\s*([\\d$%]+).*", CASE_INSENSITIVE);
     private static final Pattern REF_PATTERN = Pattern.compile("\\.pref\\s+(\\w+)\\s*,\\s*(\\w+::\\w+).*", CASE_INSENSITIVE);
-    private static final Pattern CALL_PATTERN = Pattern.compile("(?:jsr|jmp|jeq|jne|jmi|jpl|jcs|jcc|jvs|jvc)\\s+(\\w+)(?:[\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
+    private static final Pattern CALL_PATTERN = Pattern.compile("(jsr|jmp|jeq|jne|jmi|jpl|jcs|jcc|jvs|jvc)\\s+(\\w+)(?:[\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
     private static final Pattern FREE_PATTERN = Pattern.compile("\\.pfree\\s+(\\w+)(?:\\s*,\\s*(\\w+))*(?:[\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
     private static final Pattern COMMA_PATTERN = Pattern.compile(",");
 
     private final Heap heap = new Heap();
     private final Map<String, ArrayList<Ref>> refByFunc = new LinkedHashMap<>();
     private final ArrayDeque<Function> stack = new ArrayDeque<>();
+    private final Map<String, Function> functions;
+    private final Collection<String> vectors;
+
+    public PA65(Collection<String> vectors, Collection<File> input) throws IOException {
+        this.functions = readFunctions(input);
+        this.vectors = vectors;
+    }
 
     @Override
     public String toString() {
@@ -109,9 +116,7 @@ public class PA65 {
         return builder.toString();
     }
 
-    public void createHeap(Collection<String> vectors, Collection<File> input) throws IOException {
-        Map<String, Function> functions = readFunctions(input);
-
+    public void createHeap() throws IOException {
         for (String vector : vectors) {
             Function function = functions.values()
                     .stream()
@@ -119,37 +124,46 @@ public class PA65 {
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("Vector function not found: " + vector));
 
-            do {
-                Object stmt = function.getStmts().poll();
+            processFunction(function);
+        }
+    }
 
-                if (stmt == null) {
-                    heap.free(function);
-                    continue;
-                } else if (stmt instanceof Alloc) {
-                    heap.allocByFirstFit((Alloc) stmt);
-                } else if (stmt instanceof Ref) {
-                    refByFunc.computeIfAbsent(function.getName(), s -> new ArrayList<>()).add((Ref) stmt);
-                } else if (stmt instanceof Free) {
-                    heap.free(((Free) stmt).getVariables());
-                } else if (stmt instanceof Call) {
-                    stack.push(function);
-                    Function called = functions.get(((Call) stmt).getFunction());
+    private void processFunction(Function function) {
+        for (Object stmt : function.getStmts()) {
+            if (stmt instanceof Alloc) {
+                heap.allocByFirstFit((Alloc) stmt);
+            } else if (stmt instanceof Ref) {
+                refByFunc.computeIfAbsent(function.getName(), s -> new ArrayList<>()).add((Ref) stmt);
+            } else if (stmt instanceof Free) {
+                heap.free(((Free) stmt).getVariables());
+            } else if (stmt instanceof Call) {
+                Function called = functions.get(((Call) stmt).getFunction());
 
-                    if (called == null) { // label not defined with .func
-                        continue;
-                    }
-
-                    if (called.equals(function) || stack.contains(called)) { // recursion
-                        continue;
-                    }
-
-                    stack.push(called);
+                if (called == null) { // skip if not declared as .func
                     continue;
                 }
 
-                stack.push(function);
-            } while ((function = stack.poll()) != null);
+                if (stack.contains(called)) { // skip on recursion
+                    continue;
+                }
+
+                if (((Call) stmt).isJump()) {
+                    heap.save(function);
+                } else {
+                    stack.push(function);
+                }
+
+                processFunction(called);
+
+                if (((Call) stmt).isJump()) {
+                    heap.load(function);
+                } else {
+                    stack.poll();
+                }
+            }
         }
+
+        heap.free(function);
     }
 
     private static Map<String, Function> readFunctions(Collection<File> files) throws IOException {
@@ -176,7 +190,7 @@ public class PA65 {
                 } else if ((matcher = REF_PATTERN.matcher(line)).matches()) {
                     function.getStmts().add(new Ref(absNameOf(function, matcher.group(1)), matcher.group(2)));
                 } else if ((matcher = CALL_PATTERN.matcher(line)).matches()) {
-                    function.getStmts().add(new Call(matcher.group(1)));
+                    function.getStmts().add(new Call(matcher.group(2), !matcher.group(1).equalsIgnoreCase("jsr")));
                 } else if ((matcher = FREE_PATTERN.matcher(line)).matches()) {
                     Free free = new Free();
                     free.getVariables().add(absNameOf(function, matcher.group(1)));
@@ -231,8 +245,8 @@ public class PA65 {
         List<File> input = namespace.getList("file").stream().map(Object::toString).map(File::new).collect(toList());
         String output = namespace.getString("output");
 
-        PA65 pa65 = new PA65();
-        pa65.createHeap(vectors, input);
+        PA65 pa65 = new PA65(vectors, input);
+        pa65.createHeap();
 
         if (output != null) {
             Files.write(Paths.get(output), pa65.toString().getBytes(), CREATE, TRUNCATE_EXISTING);
