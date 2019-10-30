@@ -47,9 +47,9 @@ public class PA65 {
     private final Map<String, ArrayList<Ref>> refByFunc = new LinkedHashMap<>();
     private final ArrayDeque<Function> stack = new ArrayDeque<>();
     private final Map<String, Function> functions;
-    private final Collection<String> vectors;
+    private final List<String> vectors;
 
-    public PA65(Collection<String> vectors, Collection<File> input) throws IOException {
+    public PA65(List<String> vectors, Collection<File> input) throws IOException {
         this.functions = parseFunctions(input);
         this.vectors = vectors;
     }
@@ -62,7 +62,8 @@ public class PA65 {
         builder.append(lineSeparator());
 
         if (!heap.getBlocksBySegment().isEmpty()) {
-            builder.append("\t.ifndef ").append(heapNameOf(heap.getBlocksBySegment().keySet().iterator().next())).append(lineSeparator())
+            builder.append("\t.macro __PA65_ALLOC_HEAP__").append(lineSeparator())
+                    .append("\t.pushseg").append(lineSeparator())
                     .append(lineSeparator());
             heap.getBlocksBySegment().forEach((segment, heap) -> {
                 int heapSize = heap.stream().mapToInt(block -> block.getOffset() + block.getSize()).max().orElse(0);
@@ -78,7 +79,8 @@ public class PA65 {
                             .append(lineSeparator());
                 }
             });
-            builder.append("\t.endif").append(lineSeparator())
+            builder.append("\t.popseg").append(lineSeparator())
+                    .append("\t.endmac").append(lineSeparator())
                     .append(lineSeparator());
         }
 
@@ -86,7 +88,7 @@ public class PA65 {
                 .forEach((func, blocks) -> {
                     ArrayList<Ref> refs = refByFunc.getOrDefault(func, new ArrayList<>());
                     builder.append("\t.scope ").append(func).append(lineSeparator());
-                    blocks.forEach(block -> builder.append("\t").append(block.getVariable()).append(" =\t").append(heapNameOf(block.getSegment())).append("+").append(block.getOffset())
+                    blocks.forEach(block -> builder.append("\t").append(block.getLocalVariable()).append(" =\t").append(heapNameOf(block.getSegment())).append("+").append(block.getOffset())
                             .append("\t; segment=").append(block.getSegment()).append(" size=").append(block.getSize())
                             .append(lineSeparator()));
                     refs.forEach(ref -> builder.append("\t").append(ref.getSrcVariable()).append(" =\t").append(ref.getTgtVariable()).append(lineSeparator()));
@@ -98,9 +100,12 @@ public class PA65 {
                 .append(lineSeparator());
 
         builder.append("\t.macro .func name").append(lineSeparator())
+                .append("\t.if .xmatch(name,").append(vectors.get(0)).append(")").append(lineSeparator())
+                .append("\t__PA65_ALLOC_HEAP__").append(lineSeparator())
+                .append("\t.endif").append(lineSeparator())
+                .append("\t.define .palloc(seg,var,size) var = name::var").append(lineSeparator())
                 .append("name:").append(lineSeparator())
                 .append("\t.scope").append(lineSeparator())
-                .append("\t.define .palloc(seg,var,size) var = name::var").append(lineSeparator())
                 .append("\t.endmac").append(lineSeparator())
                 .append(lineSeparator());
         builder.append("\t.macro .endfunc").append(lineSeparator())

@@ -84,6 +84,14 @@ public class Block {
         return variable.substring(0, variable.indexOf("::"));
     }
 
+    public String getLocalVariable() {
+        if (variable == null) {
+            return null;
+        }
+
+        return variable.substring(variable.indexOf("::") + 2);
+    }
+
     public boolean belongsTo(Function function) {
         return variable != null && variable.startsWith(function.getName().concat("::"));
     }
