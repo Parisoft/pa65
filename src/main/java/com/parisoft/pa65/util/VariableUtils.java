@@ -17,8 +17,4 @@ public class VariableUtils {
 
         return variable.substring(variable.indexOf("::") + 2);
     }
-
-    public static boolean belongsToFunction(String variable, String function){
-        return variable != null && variable.startsWith(function.concat("::"));
-    }
 }

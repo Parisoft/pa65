@@ -181,10 +181,10 @@ public class Heap {
 
     private void realloc(List<Block> heap) {
         List<Block> newBlocks = heap.stream()
-                .filter(block -> !block.isFree())
-                .filter(block -> !block.isFinished())
+                .filter(Block::isNotFree)
+                .filter(Block::isNotFinished)
                 .collect(toList());
-        heap.removeIf(block -> !block.isFinished());
+        heap.removeIf(Block::isNotFinished);
         fillFreeSpaces(heap);
         newBlocks.stream().map(Alloc::new).forEach(this::allocByFirstFit);
     }

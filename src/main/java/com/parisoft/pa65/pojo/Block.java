@@ -1,6 +1,5 @@
 package com.parisoft.pa65.pojo;
 
-import static com.parisoft.pa65.util.VariableUtils.belongsToFunction;
 import static com.parisoft.pa65.util.VariableUtils.functionOf;
 import static com.parisoft.pa65.util.VariableUtils.localNameOf;
 
@@ -60,8 +59,16 @@ public class Block {
         return variable == null;
     }
 
+    public boolean isNotFree(){
+        return !isFree();
+    }
+
     public boolean isFinished() {
         return finished;
+    }
+
+    public boolean isNotFinished(){
+        return !isFinished();
     }
 
     public void setFinished(boolean finished) {
@@ -76,20 +83,12 @@ public class Block {
         this.size += that.size;
     }
 
-    public void advOffset(Block that) {
-        this.offset += that.size;
-    }
-
     public String getFunction() {
         return functionOf(variable);
     }
 
     public String getLocalVariable() {
         return localNameOf(variable);
-    }
-
-    public boolean belongsTo(Function function) {
-        return belongsToFunction(variable, function.getName());
     }
 
     @Override
