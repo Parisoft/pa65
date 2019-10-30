@@ -3,66 +3,78 @@ package com.parisoft.pa65.heap;
 import com.parisoft.pa65.pojo.Alloc;
 import com.parisoft.pa65.pojo.Block;
 import com.parisoft.pa65.pojo.Function;
+import com.parisoft.pa65.pojo.Ref;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.IntStream;
 
+import static com.parisoft.pa65.util.VariableUtils.functionOf;
+import static java.util.Collections.emptyList;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 
 public class Heap {
 
-    private final Map<String, List<Block>> tmpHeapBySegment = new HashMap<>();
+    private final Map<String, List<Block>> tmpHeapByFunction = new HashMap<>();
     private final Map<String, List<Block>> execHeapBySegment = new HashMap<>();
     private final Map<String, List<Block>> finalHeapBySegment = new HashMap<>();
+    private final Map<String, List<Ref>> refsByFunction = new LinkedHashMap<>();
+    private final Map<String, List<Ref>> refsByTarget = new LinkedHashMap<>();
+    private final ArrayDeque<Function> stack = new ArrayDeque<>();
 
     public Map<String, List<Block>> getBlocksBySegment() {
         return finalHeapBySegment;
     }
 
-    public Map<String, List<Block>> getBlocksByFunction(){
+    public Map<String, List<Block>> getBlocksByFunction() {
         return getBlocksBySegment().values()
                 .stream()
                 .flatMap(List::stream)
                 .collect(groupingBy(Block::getFunction));
     }
 
-    public void save(Function function){
+    public Map<String, List<Ref>> getRefsByFunction() {
+        return refsByFunction;
+    }
+
+    public ArrayDeque<Function> getStack() {
+        return stack;
+    }
+
+    public void addReference(Function function, Ref ref) {
+        refsByFunction.computeIfAbsent(function.getName(), s -> new ArrayList<>()).add(ref);
+        refsByTarget.computeIfAbsent(ref.getTgtVariable(), s -> new ArrayList<>()).add(ref);
+    }
+
+    public void save(Function function) {
         List<Block> blocks = execHeapBySegment.values()
                 .stream()
                 .flatMap(List::stream)
-                .filter(block -> block.belongsTo(function))
+                .filter(this::canDereference)
                 .collect(toList());
-        blocks.forEach(this::save);
+        List<Block> tmpHeap = tmpHeapByFunction.computeIfAbsent(function.getName(), s -> newHeap(false));
+        blocks.forEach(block -> free(block, tmpHeap));
     }
 
-    private void save(Block block) {
-        free(block, tmpHeapBySegment);
+    public void load(Function function) {
+        List<Block> blocks = tmpHeapByFunction.remove(function.getName());
+        blocks.stream()
+                .map(Alloc::new)
+                .forEach(this::allocByFirstFit);
     }
 
-    public void load(Function function){
-        List<Block> blocks = tmpHeapBySegment.values()
-                .stream()
-                .flatMap(List::stream)
-                .filter(block -> block.belongsTo(function))
-                .collect(toList());
-        blocks.forEach(this::load);
-    }
-
-    private void load(Block block) {
-        tmpHeapBySegment.get(block.getSegment()).remove(block);
-        allocByFirstFit(new Alloc(block));
-    }
-
-    public void free(Function function){
+    public void free() {
         List<Block> blocks = execHeapBySegment.values()
                 .stream()
                 .flatMap(List::stream)
-                .filter(block -> block.belongsTo(function))
+                .filter(this::canDereference)
                 .collect(toList());
         blocks.forEach(this::free);
     }
@@ -79,10 +91,10 @@ public class Heap {
     }
 
     private void free(Block block) {
-        free(block, finalHeapBySegment);
+        free(block, finalHeapBySegment.computeIfAbsent(block.getSegment(), s -> newHeap(false)));
     }
 
-    private void free(Block block, Map<String, List<Block>> heapBySegment) {
+    private void free(Block block, List<Block> toHeap) {
         List<Block> heap = execHeapBySegment.get(block.getSegment());
         int i = IntStream.range(0, heap.size()).filter(value -> heap.get(value).equals(block)).findFirst().orElse(-1);
 
@@ -111,15 +123,19 @@ public class Heap {
             heap.add(i, free);
         }
 
+        if (toHeap.stream().anyMatch(block1 -> Objects.equals(block.getVariable(), block1.getVariable()))) {
+            return;
+        }
+
         block.setFinished(true);
-        heapBySegment.computeIfAbsent(block.getSegment(), s -> newHeap(false)).add(block);
+        toHeap.add(block);
     }
 
     @SuppressWarnings("SuspiciousListRemoveInLoop")
     public void allocByFirstFit(Alloc alloc) {
         List<Block> heap = execHeapBySegment.computeIfAbsent(alloc.getSegment(), s -> newHeap(true));
 
-        if (heap.stream().anyMatch(block -> alloc.getVariable().equals(block.getVariable()))) {
+        if (heap.stream().anyMatch(block -> Objects.equals(alloc.getVariable(), block.getVariable()))) {
             return;
         }
 
@@ -221,6 +237,26 @@ public class Heap {
             free.setSize(Integer.MAX_VALUE);
             heap.add(heap.size(), free);
         }
+    }
+
+    private boolean canDereference(Block block) {
+        if (block.isFree()) {
+            return false;
+        }
+
+        return canDereference(block.getVariable());
+    }
+
+    private boolean canDereference(String variable) {
+        String functionOfVariable = functionOf(variable);
+
+        if (stack.stream().anyMatch(function -> function.getName().equals(functionOfVariable))) {
+            return false;
+        }
+
+        List<String> pointers = refsByTarget.getOrDefault(variable, emptyList()).stream().map(Ref::getSrcVariable).collect(toList());
+
+        return pointers.stream().allMatch(this::canDereference);
     }
 
     private static List<Block> newHeap(boolean fill) {

@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,6 +27,7 @@ import java.util.stream.IntStream;
 import static java.lang.System.lineSeparator;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static java.util.Collections.emptyList;
 import static java.util.regex.Pattern.CASE_INSENSITIVE;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
@@ -43,8 +43,6 @@ public class PA65 {
     private static final Pattern COMMA_PATTERN = Pattern.compile(",");
 
     private final Heap heap = new Heap();
-    private final Map<String, ArrayList<Ref>> refByFunc = new LinkedHashMap<>();
-    private final ArrayDeque<Function> stack = new ArrayDeque<>();
     private final Map<String, Function> functions;
     private final List<String> vectors;
 
@@ -71,7 +69,7 @@ public class PA65 {
         heap.getBlocksBySegment().keySet().forEach(segment -> builder.append(segment.equals("\"ZEROPAGE\"") || segment.equals(".zeropage") ? "\t.globalzp " : "\t.global ").append(heapNameOf(segment)).append(lineSeparator()));
         builder.append(lineSeparator());
 
-        if (!heap.getBlocksBySegment().isEmpty()) {
+        if (heap.getBlocksBySegment().size() > 0) {
             builder.append("\t.macro __PA65_ALLOC_HEAP__").append(lineSeparator())
                     .append("\t.pushseg").append(lineSeparator())
                     .append(lineSeparator());
@@ -96,7 +94,7 @@ public class PA65 {
 
         heap.getBlocksByFunction()
                 .forEach((func, blocks) -> {
-                    ArrayList<Ref> refs = refByFunc.getOrDefault(func, new ArrayList<>());
+                    List<Ref> refs = heap.getRefsByFunction().getOrDefault(func, emptyList());
                     builder.append("\t.scope ").append(func).append(lineSeparator());
                     blocks.forEach(block -> builder.append("\t").append(block.getLocalVariable()).append(" =\t").append(heapNameOf(block.getSegment())).append("+").append(block.getOffset())
                             .append("\t; segment=").append(block.getSegment()).append(" size=").append(block.getSize())
@@ -148,10 +146,10 @@ public class PA65 {
             if (stmt instanceof Alloc) {
                 heap.allocByFirstFit((Alloc) stmt);
             } else if (stmt instanceof Ref) {
-                refByFunc.computeIfAbsent(function.getName(), s -> new ArrayList<>()).add((Ref) stmt);
+                heap.addReference(function, (Ref) stmt);
             } else if (stmt instanceof Free) {
                 if (((Free) stmt).getVariables().isEmpty()) {
-                    heap.free(function);
+                    heap.free();
                 } else {
                     heap.free(((Free) stmt).getVariables());
                 }
@@ -161,6 +159,8 @@ public class PA65 {
                 if (called == null) { // skip if not declared as .func
                     continue;
                 }
+
+                ArrayDeque<Function> stack = heap.getStack();
 
                 if (stack.contains(called)) { // skip on recursion
                     continue;
@@ -182,7 +182,7 @@ public class PA65 {
             }
         }
 
-        heap.free(function);
+        heap.free();
     }
 
     private static Map<String, Function> parseFunctions(Collection<File> files) throws IOException {

@@ -1,5 +1,9 @@
 package com.parisoft.pa65.pojo;
 
+import static com.parisoft.pa65.util.VariableUtils.belongsToFunction;
+import static com.parisoft.pa65.util.VariableUtils.functionOf;
+import static com.parisoft.pa65.util.VariableUtils.localNameOf;
+
 public class Block {
 
     private String variable;
@@ -77,23 +81,15 @@ public class Block {
     }
 
     public String getFunction() {
-        if (variable == null) {
-            return null;
-        }
-
-        return variable.substring(0, variable.indexOf("::"));
+        return functionOf(variable);
     }
 
     public String getLocalVariable() {
-        if (variable == null) {
-            return null;
-        }
-
-        return variable.substring(variable.indexOf("::") + 2);
+        return localNameOf(variable);
     }
 
     public boolean belongsTo(Function function) {
-        return variable != null && variable.startsWith(function.getName().concat("::"));
+        return belongsToFunction(variable, function.getName());
     }
 
     @Override
