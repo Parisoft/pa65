@@ -246,10 +246,11 @@ public class PA65 {
         return "heap" + Integer.toHexString(Math.abs(segment.hashCode()));
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         ArgumentParser parser = ArgumentParsers.newFor("pa65").build()
                 .defaultHelp(true)
                 .description("Pseudo memory allocator for ca65 projects");
+        parser.addArgument("-d", "--debug").nargs("?").setDefault(false).setConst(false).choices(true, false).help("Set debug mode.");
         parser.addArgument("-o", "--output").required(false).help("Path to the generated file. Omit to print the file content to the standard output.");
         parser.addArgument("file").nargs("+").help("Input source files in ca65 format");
 
@@ -264,14 +265,25 @@ public class PA65 {
 
         List<File> input = namespace.getList("file").stream().map(Object::toString).map(File::new).collect(toList());
         String output = namespace.getString("output");
+        boolean debug = namespace.getBoolean("debug");
 
-        PA65 pa65 = new PA65(input);
-        pa65.createHeap();
+        try {
+            PA65 pa65 = new PA65(input);
+            pa65.createHeap();
 
-        if (output != null) {
-            Files.write(Paths.get(output), pa65.toString().getBytes(), CREATE, TRUNCATE_EXISTING);
-        } else {
-            System.out.println(pa65);
+            if (output != null) {
+                Files.write(Paths.get(output), pa65.toString().getBytes(), CREATE, TRUNCATE_EXISTING);
+            } else {
+                System.out.println(pa65);
+            }
+        } catch (Exception e) {
+            if (debug) {
+                e.printStackTrace();
+            } else {
+                System.err.println(e.getMessage());
+            }
+
+            System.exit(1);
         }
     }
 }
