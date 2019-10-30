@@ -21,7 +21,6 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
@@ -49,9 +48,20 @@ public class PA65 {
     private final Map<String, Function> functions;
     private final List<String> vectors;
 
-    public PA65(List<String> vectors, Collection<File> input) throws IOException {
+    public PA65(Collection<File> input) throws IOException {
         this.functions = parseFunctions(input);
-        this.vectors = vectors;
+
+        List<String> referenced = functions.values()
+                .stream()
+                .map(Function::getStmts)
+                .flatMap(List::stream)
+                .filter(o -> o instanceof Call)
+                .map(o -> ((Call) o).getFunction())
+                .collect(toList());
+        this.vectors = functions.keySet()
+                .stream()
+                .filter(func -> !referenced.contains(func))
+                .collect(toList());
     }
 
     @Override
@@ -225,6 +235,10 @@ public class PA65 {
     }
 
     private static String absNameOf(Function function, String var) {
+        if (var.contains("::")) {
+            return var;
+        }
+
         return function.getName() + "::" + var;
     }
 
@@ -236,9 +250,6 @@ public class PA65 {
         ArgumentParser parser = ArgumentParsers.newFor("pa65").build()
                 .defaultHelp(true)
                 .description("Pseudo memory allocator for ca65 projects");
-        parser.addArgument("-r", "--reset").required(true).help("Name of the reset or main function");
-        parser.addArgument("-n", "--nmi").required(false).help("Name of the nmi function");
-        parser.addArgument("-i", "--irq").required(false).help("Name of the irq function");
         parser.addArgument("-o", "--output").required(false).help("Path to the generated file. Omit to print the file content to the standard output.");
         parser.addArgument("file").nargs("+").help("Input source files in ca65 format");
 
@@ -251,16 +262,10 @@ public class PA65 {
             System.exit(1);
         }
 
-        List<String> vectors = new ArrayList<>(3);
-        vectors.add(namespace.getString("reset"));
-        vectors.add(namespace.getString("nmi"));
-        vectors.add(namespace.getString("irq"));
-        vectors.removeIf(Objects::isNull);
-
         List<File> input = namespace.getList("file").stream().map(Object::toString).map(File::new).collect(toList());
         String output = namespace.getString("output");
 
-        PA65 pa65 = new PA65(vectors, input);
+        PA65 pa65 = new PA65(input);
         pa65.createHeap();
 
         if (output != null) {
