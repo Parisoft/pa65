@@ -49,8 +49,17 @@ public class Heap {
     }
 
     public void addReference(Function function, Ref ref) {
-        refsByFunction.computeIfAbsent(function.getName(), s -> new ArrayList<>()).add(ref);
-        refsByTarget.computeIfAbsent(ref.getTgtVariable(), s -> new ArrayList<>()).add(ref);
+        List<Ref> refs = refsByFunction.computeIfAbsent(function.getName(), s -> new ArrayList<>());
+
+        if (!refs.contains(ref)) {
+            refs.add(ref);
+        }
+
+        refs = refsByTarget.computeIfAbsent(ref.getTgtVariable(), s -> new ArrayList<>());
+
+        if(!refs.contains(ref)) {
+            refs.add(ref);
+        }
     }
 
     public void save(Function function) {

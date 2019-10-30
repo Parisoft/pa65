@@ -59,7 +59,7 @@ public class Block {
         return variable == null;
     }
 
-    public boolean isNotFree(){
+    public boolean isNotFree() {
         return !isFree();
     }
 
@@ -67,7 +67,7 @@ public class Block {
         return finished;
     }
 
-    public boolean isNotFinished(){
+    public boolean isNotFinished() {
         return !isFinished();
     }
 
@@ -81,6 +81,9 @@ public class Block {
 
     public void addSize(Block that) {
         this.size += that.size;
+        if (this.size < 0) { // overflow
+            this.size = Integer.MAX_VALUE;
+        }
     }
 
     public String getFunction() {

@@ -2,6 +2,7 @@ package com.parisoft.pa65;
 
 import com.parisoft.pa65.heap.Heap;
 import com.parisoft.pa65.pojo.Alloc;
+import com.parisoft.pa65.pojo.Block;
 import com.parisoft.pa65.pojo.Call;
 import com.parisoft.pa65.pojo.Free;
 import com.parisoft.pa65.pojo.Function;
@@ -28,6 +29,7 @@ import static java.lang.System.lineSeparator;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.util.Collections.emptyList;
+import static java.util.Comparator.comparing;
 import static java.util.regex.Pattern.CASE_INSENSITIVE;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
@@ -62,8 +64,7 @@ public class PA65 {
                 .collect(toList());
     }
 
-    @Override
-    public String toString() {
+    public String output() {
         final StringBuilder builder = new StringBuilder();
 
         heap.getBlocksBySegment().keySet().forEach(segment -> builder.append(segment.equals("\"ZEROPAGE\"") || segment.equals(".zeropage") ? "\t.globalzp " : "\t.global ").append(heapNameOf(segment)).append(lineSeparator()));
@@ -96,7 +97,8 @@ public class PA65 {
                 .forEach((func, blocks) -> {
                     List<Ref> refs = heap.getRefsByFunction().getOrDefault(func, emptyList());
                     builder.append("\t.scope ").append(func).append(lineSeparator());
-                    blocks.forEach(block -> builder.append("\t").append(block.getLocalVariable()).append(" =\t").append(heapNameOf(block.getSegment())).append("+").append(block.getOffset())
+                    blocks.sort(comparing(Block::getOffset));
+                    blocks.forEach(block -> builder.append("\t").append(block.getLocalVariable()).append(" =\t\t").append(heapNameOf(block.getSegment())).append("+").append(block.getOffset())
                             .append("\t; segment=").append(block.getSegment()).append(" size=").append(block.getSize())
                             .append(lineSeparator()));
                     refs.forEach(ref -> builder.append("\t").append(ref.getSrcVariable()).append(" =\t").append(ref.getTgtVariable()).append(lineSeparator()));
@@ -147,6 +149,25 @@ public class PA65 {
                 heap.allocByFirstFit((Alloc) stmt);
             } else if (stmt instanceof Ref) {
                 heap.addReference(function, (Ref) stmt);
+                StringBuilder target = new StringBuilder(((Ref) stmt).getTgtVariable());
+                Object found;
+
+                while ((found = functions.values()
+                        .stream()
+                        .map(Function::getStmts)
+                        .flatMap(List::stream)
+                        .parallel()
+                        .filter(o -> (o instanceof Alloc && ((Alloc) o).getVariable().equals(target.toString()))
+                                || (o instanceof Ref && ((Ref) o).getSrcVariable().equals(target.toString())))
+                        .findFirst()
+                        .orElse(null)) != null && !(found instanceof Alloc)) {
+                    target.delete(0, target.length() - 1);
+                    target.append(((Ref) found).getTgtVariable());
+                }
+
+                if (found != null) {
+                    heap.allocByFirstFit((Alloc) found);
+                }
             } else if (stmt instanceof Free) {
                 if (((Free) stmt).getVariables().isEmpty()) {
                     heap.free();
@@ -272,9 +293,9 @@ public class PA65 {
             pa65.createHeap();
 
             if (output != null) {
-                Files.write(Paths.get(output), pa65.toString().getBytes(), CREATE, TRUNCATE_EXISTING);
+                Files.write(Paths.get(output), pa65.output().getBytes(), CREATE, TRUNCATE_EXISTING);
             } else {
-                System.out.println(pa65);
+                System.out.println(pa65.output());
             }
         } catch (Exception e) {
             if (debug) {
