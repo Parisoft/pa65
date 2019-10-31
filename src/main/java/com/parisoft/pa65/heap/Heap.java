@@ -281,7 +281,7 @@ public class Heap {
     }
 
     public static String nameOf(String segment) {
-        return "heap" + Integer.toHexString(Math.abs(segment.hashCode()));
+        return "heap_" + segment.replaceAll("\\W", "");
     }
 
 }

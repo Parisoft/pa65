@@ -33,7 +33,7 @@ public class Scopes {
                     blocks.forEach(block -> builder.append("\t").append(rpad(block.getShortVariable(), maxLen)).append(" = ").append(Heap.nameOf(block.getSegment())).append("+").append(rpad(block.getOffset(), 2))
                             .append("\t; Segment=").append(block.getSegment()).append(" Size=").append(Integer.toHexString(block.getSize()))
                             .append(lineSeparator()));
-                    refs.forEach(ref -> builder.append("\t").append(ref.getShortSrcVariable()).append(" =\t").append(ref.getTgtVariable()).append(lineSeparator()));
+                    refs.forEach(ref -> builder.append("\t").append(rpad(ref.getShortSrcVariable(), maxLen)).append(" = ").append(ref.getTgtVariable()).append(lineSeparator()));
                     builder.append("\t.endscope").append(lineSeparator())
                             .append(lineSeparator());
                 });
