@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.parisoft.pa65.util.VariableUtils.absNameOf;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.util.regex.Pattern.CASE_INSENSITIVE;
@@ -244,14 +245,6 @@ public class PA65 {
                 }
             }
         }
-    }
-
-    private static String absNameOf(Function function, String var) {
-        if (var.contains("::")) {
-            return var;
-        }
-
-        return function.getName() + "::" + var;
     }
 
     public static void main(String[] args) {

@@ -1,5 +1,7 @@
 package com.parisoft.pa65.util;
 
+import com.parisoft.pa65.pojo.Function;
+
 public class VariableUtils {
 
     public static String functionOf(String variable) {
@@ -16,5 +18,13 @@ public class VariableUtils {
         }
 
         return variable.substring(variable.indexOf("::") + 2);
+    }
+
+    public static String absNameOf(Function function, String var) {
+        if (var.contains("::")) {
+            return var;
+        }
+
+        return function.getName() + "::" + var;
     }
 }
