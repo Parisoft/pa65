@@ -21,10 +21,12 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayDeque;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,16 +42,17 @@ public class PA65 {
     private static final Pattern FUNC_CLOSE_PATTERN = Pattern.compile("\\.endfunc([\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
     private static final Pattern ALLOC_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?\\.palloc\\s+([^,\\s]+)\\s*,\\s*(\\w+)\\s*,\\s*([\\d$%]+).*", CASE_INSENSITIVE);
     private static final Pattern REF_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?\\.pref\\s+(\\w+)\\s*,\\s*(\\w+::\\w+).*", CASE_INSENSITIVE);
-    private static final Pattern CALL_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?(jsr|jmp|jeq|jne|jmi|jpl|jcs|jcc|jvs|jvc)\\s+(\\w+)(?:[\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
+    private static final Pattern CALL_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?(jsr|jmp|jeq|jne|jmi|jpl|jcs|jcc|jvs|jvc|jtx|jty)\\s+(\\w+)(?:[\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
+    private static final Pattern TABLE_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?\\.func_table\\s+(\\w+)\\s*,\\s*\\{?\\s*(\\s*,?\\s*\\w+)*[}\\\\]?(?:[\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
     private static final Pattern FREE_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?\\.pfree(?:\\s+(\\w+)(?:\\s*,\\s*(\\w+))*)?(?:[\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
     private static final Pattern COMMA_PATTERN = Pattern.compile(",");
 
     private final Heap heap = new Heap();
-    private final Map<String, Function> functions;
+    private final Map<String, Function> functions = new LinkedHashMap<>();
     private final List<String> vectors;
 
     public PA65(Collection<File> input) throws IOException {
-        this.functions = parseFunctions(input);
+        parseFunctions(input);
 
         List<String> referenced = functions.values()
                 .stream()
@@ -149,15 +152,17 @@ public class PA65 {
         return Optional.ofNullable((Alloc) found);
     }
 
-    private static Map<String, Function> parseFunctions(Collection<File> files) throws IOException {
-        Map<String, Function> functions = new LinkedHashMap<>();
+    private void parseFunctions(Collection<File> files) throws IOException {
+        Map<String, Set<String>> tables = new LinkedHashMap<>();
 
         for (File file : files) {
             Function function = null;
             Matcher matcher;
 
-            for (String line : Files.readAllLines(file.toPath())) {
-                line = line.trim();
+            List<String> lines = Files.readAllLines(file.toPath());
+
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i).trim();
 
                 if (function == null) {
                     if ((matcher = FUNC_OPEN_PATTERN.matcher(line)).matches()) {
@@ -189,17 +194,56 @@ public class PA65 {
 
                     String[] tokens = COMMA_PATTERN.split(line);
 
-                    for (int i = 1; i < tokens.length - 1; i++) {
-                        free.getVariables().add(absNameOf(function, tokens[i].trim()));
+                    for (int t = 1; t < tokens.length - 1; t++) {
+                        free.getVariables().add(absNameOf(function, tokens[t].trim()));
                     }
+
                     function.getStmts().add(free);
+                } else if ((matcher = TABLE_PATTERN.matcher(line)).matches()) {
+                    String tableName = matcher.group(1);
+                    Set<String> entries = tables.computeIfAbsent(tableName, s -> new HashSet<>());
+
+                    String subline = null;
+                    int j = i;
+
+                    do {
+                        if (subline == null) {
+                            subline = line.substring(line.indexOf(tableName) + tableName.length());
+                        } else {
+                            subline = lines.get(++j).trim();
+                        }
+
+                        for (String token : COMMA_PATTERN.split(subline)) {
+                            String entry = token.trim().replaceAll("\\s*-\\s*1", "").replaceAll("\\W", "");
+
+                            if (entry.length() > 0) {
+                                entries.add(entry);
+                            }
+                        }
+                    } while (!subline.contains("}"));
+
+                    i = j;
                 } else if (FUNC_CLOSE_PATTERN.matcher(line).matches()) {
                     function = null;
                 }
             }
         }
 
-        return functions;
+        // replace call to jump tables for calls to it's functions
+        for (Function function : functions.values()) {
+            for (int i = 0; i < function.getStmts().size(); i++) {
+                Object stmt = function.getStmts().get(i);
+
+                if (stmt instanceof Call && tables.containsKey(((Call) stmt).getFunction())) {
+                    List<Call> calls = tables.get(((Call) stmt).getFunction()).stream()
+                            .filter(functions::containsKey)
+                            .map(target -> new Call(target, true))
+                            .collect(toList());
+                    function.getStmts().remove(stmt);
+                    function.getStmts().addAll(i, calls);
+                }
+            }
+        }
     }
 
     private static String absNameOf(Function function, String var) {
@@ -215,7 +259,7 @@ public class PA65 {
                 .defaultHelp(true)
                 .description("Pseudo memory allocator for ca65 projects");
         parser.addArgument("-d", "--debug").nargs("?").setDefault(false).setConst(true).choices(true, false).help("Set debug mode.");
-        parser.addArgument("-t", "--trace").nargs("?").setDefault(false).setConst(true).choices(true, false).help("Print the stack trace.");
+        parser.addArgument("-t", "--tree").nargs("?").setDefault(false).setConst(true).choices(true, false).help("Print the execution tree.");
         parser.addArgument("-o", "--output").required(false).help("Path to the generated file. Omit to print the file content to the standard output.");
         parser.addArgument("file").nargs("+").help("Input source files in ca65 format");
 
@@ -231,13 +275,13 @@ public class PA65 {
         List<File> input = namespace.getList("file").stream().map(Object::toString).map(File::new).collect(toList());
         String output = namespace.getString("output");
         boolean debug = namespace.getBoolean("debug");
-        boolean trace = namespace.getBoolean("trace");
+        boolean tree = namespace.getBoolean("tree");
 
         try {
             PA65 pa65 = new PA65(input);
             pa65.createHeap();
 
-            if (trace) {
+            if (tree) {
                 System.out.println(pa65.getStackTrace());
             }
 
