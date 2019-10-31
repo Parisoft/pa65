@@ -1,7 +1,7 @@
 package com.parisoft.pa65.pojo;
 
 import static com.parisoft.pa65.util.VariableUtils.functionOf;
-import static com.parisoft.pa65.util.VariableUtils.localNameOf;
+import static com.parisoft.pa65.util.VariableUtils.shortNameOf;
 
 public class Block {
 
@@ -90,8 +90,8 @@ public class Block {
         return functionOf(variable);
     }
 
-    public String getLocalVariable() {
-        return localNameOf(variable);
+    public String getShortVariable() {
+        return shortNameOf(variable);
     }
 
     @Override

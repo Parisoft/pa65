@@ -10,7 +10,7 @@ public class VariableUtils {
         return variable.substring(0, variable.indexOf("::"));
     }
 
-    public static String localNameOf(String variable) {
+    public static String shortNameOf(String variable) {
         if (variable == null) {
             return null;
         }

@@ -24,7 +24,7 @@ public class Heap {
 
     private final Map<String, List<Block>> tmpHeapByFunction = new HashMap<>();
     private final Map<String, List<Block>> execHeapBySegment = new HashMap<>();
-    private final Map<String, List<Block>> finalHeapBySegment = new HashMap<>();
+    private final Map<String, List<Block>> finalHeapBySegment = new LinkedHashMap<>();
     private final Map<String, List<Ref>> refsByFunction = new LinkedHashMap<>();
     private final Map<String, List<Ref>> refsByTarget = new LinkedHashMap<>();
     private final ArrayDeque<Function> stack = new ArrayDeque<>();
@@ -279,4 +279,9 @@ public class Heap {
 
         return heap;
     }
+
+    public static String nameOf(String segment) {
+        return "heap" + Integer.toHexString(Math.abs(segment.hashCode()));
+    }
+
 }

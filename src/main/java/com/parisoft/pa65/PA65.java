@@ -1,6 +1,9 @@
 package com.parisoft.pa65;
 
 import com.parisoft.pa65.heap.Heap;
+import com.parisoft.pa65.output.Macros;
+import com.parisoft.pa65.output.Scopes;
+import com.parisoft.pa65.output.Segments;
 import com.parisoft.pa65.pojo.Alloc;
 import com.parisoft.pa65.pojo.Block;
 import com.parisoft.pa65.pojo.Call;
@@ -21,9 +24,10 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.IntStream;
 
 import static java.lang.System.lineSeparator;
 import static java.nio.file.StandardOpenOption.CREATE;
@@ -31,7 +35,6 @@ import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.util.Collections.emptyList;
 import static java.util.Comparator.comparing;
 import static java.util.regex.Pattern.CASE_INSENSITIVE;
-import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
 public class PA65 {
@@ -65,70 +68,9 @@ public class PA65 {
     }
 
     public String output() {
-        final StringBuilder builder = new StringBuilder();
-
-        heap.getBlocksBySegment().keySet().forEach(segment -> builder.append(segment.equals("\"ZEROPAGE\"") || segment.equals(".zeropage") ? "\t.globalzp " : "\t.global ").append(heapNameOf(segment)).append(lineSeparator()));
-        builder.append(lineSeparator());
-
-        if (heap.getBlocksBySegment().size() > 0) {
-            builder.append("\t.macro __PA65_ALLOC_HEAP__").append(lineSeparator())
-                    .append("\t.pushseg").append(lineSeparator())
-                    .append(lineSeparator());
-            heap.getBlocksBySegment().forEach((segment, heap) -> {
-                int heapSize = heap.stream().mapToInt(block -> block.getOffset() + block.getSize()).max().orElse(0);
-
-                if (heapSize > 0) {
-                    if (segment.startsWith(".")) {
-                        builder.append("\t").append(segment).append(lineSeparator());
-                    } else {
-                        builder.append("\t").append(".segment ").append(segment).append(lineSeparator());
-                    }
-
-                    builder.append(heapNameOf(segment)).append(":\t.res ").append("$").append(Integer.toHexString(heapSize)).append(lineSeparator())
-                            .append(lineSeparator());
-                }
-            });
-            builder.append("\t.popseg").append(lineSeparator())
-                    .append("\t.endmac").append(lineSeparator())
-                    .append(lineSeparator());
-        }
-
-        heap.getBlocksByFunction()
-                .forEach((func, blocks) -> {
-                    List<Ref> refs = heap.getRefsByFunction().getOrDefault(func, emptyList());
-                    builder.append("\t.scope ").append(func).append(lineSeparator());
-                    blocks.sort(comparing(Block::getOffset));
-                    blocks.forEach(block -> builder.append("\t").append(block.getLocalVariable()).append(" =\t\t").append(heapNameOf(block.getSegment())).append("+").append(block.getOffset())
-                            .append("\t; segment=").append(block.getSegment()).append(" size=").append(block.getSize())
-                            .append(lineSeparator()));
-                    refs.forEach(ref -> builder.append("\t").append(ref.getSrcVariable()).append(" =\t").append(ref.getTgtVariable()).append(lineSeparator()));
-                    builder.append("\t.endscope").append(lineSeparator())
-                            .append(lineSeparator());
-                });
-
-        builder.append("\t.feature leading_dot_in_identifiers").append(lineSeparator())
-                .append(lineSeparator());
-
-        builder.append("\t.macro .func name").append(lineSeparator())
-                .append("\t.if .xmatch(name,").append(vectors.get(0)).append(")").append(lineSeparator())
-                .append("\t__PA65_ALLOC_HEAP__").append(lineSeparator())
-                .append("\t.endif").append(lineSeparator())
-                .append("\t.define .palloc(seg,var,size) var = name::var").append(lineSeparator())
-                .append("name:").append(lineSeparator())
-                .append("\t.scope").append(lineSeparator())
-                .append("\t.endmac").append(lineSeparator())
-                .append(lineSeparator());
-        builder.append("\t.macro .endfunc").append(lineSeparator())
-                .append("\t.endscope").append(lineSeparator())
-                .append("\t.undefine .palloc").append(lineSeparator())
-                .append("\t.endmac").append(lineSeparator())
-                .append(lineSeparator());
-        builder.append("\t.macro .pfree ").append(IntStream.rangeClosed(1, 32).mapToObj(v -> "v" + v).collect(joining(", "))).append(lineSeparator())
-                .append("\t.endmac").append(lineSeparator())
-                .append(lineSeparator());
-        builder.append("\t.define .pref(v1,v2) v1 = v2").append(lineSeparator());
-
-        return builder.toString();
+        return new Segments(heap).toString()
+                + new Scopes(heap)
+                + new Macros(vectors.get(0));
     }
 
     public void createHeap() throws IOException {
@@ -149,25 +91,7 @@ public class PA65 {
                 heap.allocByFirstFit((Alloc) stmt);
             } else if (stmt instanceof Ref) {
                 heap.addReference(function, (Ref) stmt);
-                StringBuilder target = new StringBuilder(((Ref) stmt).getTgtVariable());
-                Object found;
-
-                while ((found = functions.values()
-                        .stream()
-                        .map(Function::getStmts)
-                        .flatMap(List::stream)
-                        .parallel()
-                        .filter(o -> (o instanceof Alloc && ((Alloc) o).getVariable().equals(target.toString()))
-                                || (o instanceof Ref && ((Ref) o).getSrcVariable().equals(target.toString())))
-                        .findFirst()
-                        .orElse(null)) != null && !(found instanceof Alloc)) {
-                    target.delete(0, target.length() - 1);
-                    target.append(((Ref) found).getTgtVariable());
-                }
-
-                if (found != null) {
-                    heap.allocByFirstFit((Alloc) found);
-                }
+                allocOf((Ref) stmt).ifPresent(heap::allocByFirstFit);
             } else if (stmt instanceof Free) {
                 if (((Free) stmt).getVariables().isEmpty()) {
                     heap.free();
@@ -204,6 +128,23 @@ public class PA65 {
         }
 
         heap.free();
+    }
+
+    private Optional<Alloc> allocOf(Ref ref) {
+        AtomicReference<String> target = new AtomicReference<>(ref.getTgtVariable());
+        Object found;
+
+        while ((found = functions.values().stream()
+                .map(Function::getStmts)
+                .flatMap(List::stream).parallel()
+                .filter(o -> (o instanceof Alloc && ((Alloc) o).getVariable().equals(target.get()))
+                        || (o instanceof Ref && ((Ref) o).getSrcVariable().equals(target.get())))
+                .findFirst()
+                .orElse(null)) != null && !(found instanceof Alloc)) {
+            target.set(((Ref) found).getTgtVariable());
+        }
+
+        return Optional.ofNullable((Alloc) found);
     }
 
     private static Map<String, Function> parseFunctions(Collection<File> files) throws IOException {
@@ -261,10 +202,6 @@ public class PA65 {
         }
 
         return function.getName() + "::" + var;
-    }
-
-    private static String heapNameOf(String segment) {
-        return "heap" + Integer.toHexString(Math.abs(segment.hashCode()));
     }
 
     public static void main(String[] args) {
