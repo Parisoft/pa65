@@ -5,7 +5,7 @@ import java.util.List;
 
 public class Free {
 
-    List<String> variables = new ArrayList<>();
+    private List<String> variables = new ArrayList<>();
 
     public List<String> getVariables() {
         return variables;

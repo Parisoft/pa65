@@ -4,8 +4,8 @@ import com.parisoft.pa65.heap.Heap;
 import com.parisoft.pa65.output.Macros;
 import com.parisoft.pa65.output.Scopes;
 import com.parisoft.pa65.output.Segments;
+import com.parisoft.pa65.output.StackTrace;
 import com.parisoft.pa65.pojo.Alloc;
-import com.parisoft.pa65.pojo.Block;
 import com.parisoft.pa65.pojo.Call;
 import com.parisoft.pa65.pojo.Free;
 import com.parisoft.pa65.pojo.Function;
@@ -29,11 +29,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static java.lang.System.lineSeparator;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
-import static java.util.Collections.emptyList;
-import static java.util.Comparator.comparing;
 import static java.util.regex.Pattern.CASE_INSENSITIVE;
 import static java.util.stream.Collectors.toList;
 
@@ -73,7 +70,11 @@ public class PA65 {
                 + new Macros(vectors.get(0));
     }
 
-    public void createHeap() throws IOException {
+    public String getStackTrace() {
+        return new StackTrace(functions.values(), vectors).print();
+    }
+
+    public void createHeap() {
         for (String vector : vectors) {
             Function function = functions.values()
                     .stream()
@@ -102,6 +103,7 @@ public class PA65 {
                 Function called = functions.get(((Call) stmt).getFunction());
 
                 if (called == null) { // skip if not declared as .func
+                    ((Call) stmt).setInvalid(true);
                     continue;
                 }
 
@@ -176,13 +178,17 @@ public class PA65 {
                     Free free = new Free();
                     String var1 = matcher.group(1);
                     String var2 = matcher.group(2);
+
                     if (var1 != null) {
                         free.getVariables().add(absNameOf(function, var1));
                     }
+
                     if (var2 != null) {
                         free.getVariables().add(absNameOf(function, var2));
                     }
+
                     String[] tokens = COMMA_PATTERN.split(line);
+
                     for (int i = 1; i < tokens.length - 1; i++) {
                         free.getVariables().add(absNameOf(function, tokens[i].trim()));
                     }
@@ -208,7 +214,8 @@ public class PA65 {
         ArgumentParser parser = ArgumentParsers.newFor("pa65").build()
                 .defaultHelp(true)
                 .description("Pseudo memory allocator for ca65 projects");
-        parser.addArgument("-d", "--debug").nargs("?").setDefault(false).setConst(false).choices(true, false).help("Set debug mode.");
+        parser.addArgument("-d", "--debug").nargs("?").setDefault(false).setConst(true).choices(true, false).help("Set debug mode.");
+        parser.addArgument("-t", "--trace").nargs("?").setDefault(false).setConst(true).choices(true, false).help("Print the stack trace.");
         parser.addArgument("-o", "--output").required(false).help("Path to the generated file. Omit to print the file content to the standard output.");
         parser.addArgument("file").nargs("+").help("Input source files in ca65 format");
 
@@ -224,10 +231,15 @@ public class PA65 {
         List<File> input = namespace.getList("file").stream().map(Object::toString).map(File::new).collect(toList());
         String output = namespace.getString("output");
         boolean debug = namespace.getBoolean("debug");
+        boolean trace = namespace.getBoolean("trace");
 
         try {
             PA65 pa65 = new PA65(input);
             pa65.createHeap();
+
+            if (trace) {
+                System.out.println(pa65.getStackTrace());
+            }
 
             if (output != null) {
                 Files.write(Paths.get(output), pa65.output().getBytes(), CREATE, TRUNCATE_EXISTING);

@@ -14,6 +14,7 @@ public class Macros {
     }
 
     @Override
+    @SuppressWarnings("StringBufferReplaceableByString")
     public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append("\t.feature leading_dot_in_identifiers").append(lineSeparator())
