@@ -5,10 +5,14 @@ import com.parisoft.pa65.pojo.Block;
 import com.parisoft.pa65.pojo.Ref;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
+import static com.parisoft.pa65.util.VariableUtils.functionOf;
 import static java.lang.System.lineSeparator;
 import static java.util.Collections.emptyList;
 import static java.util.Comparator.comparing;
+import static java.util.stream.Collectors.toMap;
 
 public class Scopes {
 
@@ -22,18 +26,39 @@ public class Scopes {
     public String toString() {
         StringBuilder builder = new StringBuilder();
 
-        heap.getBlocksByFunction()
-                .forEach((func, blocks) -> {
-                    List<Ref> refs = heap.getRefsByFunction().getOrDefault(func, emptyList());
-                    int maxLen = Math.max(blocks.stream().map(Block::getShortVariable).mapToInt(String::length).max().orElse(1),
-                                          refs.stream().map(Ref::getShortSrcVariable).mapToInt(String::length).max().orElse(1));
+        Map<String, Scope> scopes = heap.getBlocksByFunction().entrySet().stream()
+                .map(entry -> {
+                    Scope scope = new Scope();
+                    scope.name = entry.getKey();
+                    scope.blocks = entry.getValue();
 
-                    builder.append("\t.scope ").append(func).append(lineSeparator());
-                    blocks.sort(comparing(Block::getOffset));
-                    blocks.forEach(block -> builder.append("\t").append(rpad(block.getShortVariable(), maxLen)).append(" = ").append(Heap.nameOf(block.getSegment())).append("+").append(rpad(block.getOffset(), 2))
+                    return scope;
+                })
+                .collect(toMap(o -> o.name, Function.identity()));
+        heap.getRefsByFunction()
+                .forEach((func, refs) -> scopes.compute(func, (name, scope) ->{
+                    if (scope == null){
+                        scope = new Scope();
+                        scope.name = name;
+                    }
+
+                    scope.refs = refs;
+
+                    return scope;
+                }));
+
+        scopes.values()
+                .stream()
+                .sorted()
+                .forEach(scope -> {
+                    int maxLen = Math.max(scope.blocks.stream().map(Block::getShortVariable).mapToInt(String::length).max().orElse(1),
+                                          scope.refs.stream().map(Ref::getShortSourceVar).mapToInt(String::length).max().orElse(1));
+                    builder.append("\t.scope ").append(scope.name).append(lineSeparator());
+                    scope.blocks.sort(comparing(Block::getOffset));
+                    scope.blocks.forEach(block -> builder.append("\t").append(rpad(block.getShortVariable(), maxLen)).append(" = ").append(Heap.nameOf(block.getSegment())).append("+").append(rpad(block.getOffset(), 2))
                             .append("\t; Segment=").append(block.getSegment()).append(" Size=").append(Integer.toHexString(block.getSize()))
                             .append(lineSeparator()));
-                    refs.forEach(ref -> builder.append("\t").append(rpad(ref.getShortSrcVariable(), maxLen)).append(" = ").append(ref.getTgtVariable()).append(lineSeparator()));
+                    scope.refs.forEach(ref -> builder.append("\t").append(rpad(ref.getShortSourceVar(), maxLen)).append(" = ").append(ref.getTargetVar()).append(lineSeparator()));
                     builder.append("\t.endscope").append(lineSeparator())
                             .append(lineSeparator());
                 });
@@ -49,5 +74,37 @@ public class Scopes {
         }
 
         return builder.toString();
+    }
+
+    class Scope implements Comparable<Scope> {
+
+        String name;
+        List<Block> blocks = emptyList();
+        List<Ref> refs = emptyList();
+
+        @Override
+        public int compareTo(Scope that) {
+            if (this.refs.isEmpty() && that.refs.isEmpty()) {
+                return this.name.compareTo(that.name);
+            }
+
+            if (this.refs.isEmpty()) {
+                return -1;
+            }
+
+            if (that.refs.isEmpty()) {
+                return 1;
+            }
+
+            if (this.refs.stream().anyMatch(ref -> functionOf(ref.getTargetVar()).equals(that.name))) {
+                return 1;
+            }
+
+            if (that.refs.stream().anyMatch(ref -> functionOf(ref.getTargetVar()).equals(this.name))) {
+                return -1;
+            }
+
+            return 0;
+        }
     }
 }

@@ -55,7 +55,7 @@ public class Heap {
             refs.add(ref);
         }
 
-        refs = refsByTarget.computeIfAbsent(ref.getTgtVariable(), s -> new ArrayList<>());
+        refs = refsByTarget.computeIfAbsent(ref.getTargetVar(), s -> new ArrayList<>());
 
         if(!refs.contains(ref)) {
             refs.add(ref);
@@ -263,7 +263,7 @@ public class Heap {
             return false;
         }
 
-        List<String> pointers = refsByTarget.getOrDefault(variable, emptyList()).stream().map(Ref::getSrcVariable).collect(toList());
+        List<String> pointers = refsByTarget.getOrDefault(variable, emptyList()).stream().map(Ref::getSourceVar).collect(toList());
 
         return pointers.stream().allMatch(this::canDereference);
     }

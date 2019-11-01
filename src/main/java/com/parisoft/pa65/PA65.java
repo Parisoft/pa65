@@ -137,17 +137,17 @@ public class PA65 {
     }
 
     private Optional<Alloc> allocOf(Ref ref) {
-        AtomicReference<String> target = new AtomicReference<>(ref.getTgtVariable());
+        AtomicReference<String> target = new AtomicReference<>(ref.getTargetVar());
         Object found;
 
         while ((found = functions.values().stream()
                 .map(Function::getStmts)
                 .flatMap(List::stream).parallel()
                 .filter(o -> (o instanceof Alloc && ((Alloc) o).getVariable().equals(target.get()))
-                        || (o instanceof Ref && ((Ref) o).getSrcVariable().equals(target.get())))
+                        || (o instanceof Ref && ((Ref) o).getSourceVar().equals(target.get())))
                 .findFirst()
                 .orElse(null)) != null && !(found instanceof Alloc)) {
-            target.set(((Ref) found).getTgtVariable());
+            target.set(((Ref) found).getTargetVar());
         }
 
         return Optional.ofNullable((Alloc) found);
