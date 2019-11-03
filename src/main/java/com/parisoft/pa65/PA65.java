@@ -143,7 +143,7 @@ public class PA65 {
             }
         }
 
-        heap.free();
+        heap.free(function);
     }
 
     private Optional<Alloc> allocOf(Ref ref) {

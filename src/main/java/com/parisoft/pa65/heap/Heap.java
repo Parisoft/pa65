@@ -57,7 +57,7 @@ public class Heap {
 
         refs = refsByTarget.computeIfAbsent(ref.getTargetVar(), s -> new ArrayList<>());
 
-        if(!refs.contains(ref)) {
+        if (!refs.contains(ref)) {
             refs.add(ref);
         }
     }
@@ -77,6 +77,15 @@ public class Heap {
         blocks.stream()
                 .map(Alloc::new)
                 .forEach(this::allocByFirstFit);
+    }
+
+    public void free(Function function) {
+        free();
+        execHeapBySegment.values()
+                .stream()
+                .flatMap(List::stream)
+                .filter(block -> function.getName().equals(block.getFunction()))
+                .forEach(block -> block.setFinished(true));
     }
 
     public void free() {
@@ -284,5 +293,4 @@ public class Heap {
     public static String nameOf(String segment) {
         return "heap_" + segment.replaceAll("\\W", "");
     }
-
 }
