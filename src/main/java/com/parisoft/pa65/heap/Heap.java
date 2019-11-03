@@ -94,6 +94,7 @@ public class Heap {
                     .stream()
                     .flatMap(List::stream)
                     .filter(block -> variable.equals(block.getVariable()))
+                    .filter(this::canDereference)
                     .findFirst()
                     .ifPresent(this::free);
         }

@@ -34,6 +34,7 @@ import java.util.regex.Pattern;
 import static com.parisoft.pa65.util.VariableUtils.absNameOf;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static java.util.Collections.emptyList;
 import static java.util.regex.Pattern.CASE_INSENSITIVE;
 import static java.util.stream.Collectors.toList;
 
@@ -102,6 +103,15 @@ public class PA65 {
                     heap.free();
                 } else {
                     heap.free(((Free) stmt).getVariables());
+                    List<String> referencedVars = heap.getRefsByFunction().getOrDefault(function.getName(), emptyList())
+                            .stream()
+                            .filter(ref -> ((Free) stmt).getVariables().contains(ref.getSourceVar()))
+                            .map(this::allocOf)
+                            .filter(Optional::isPresent)
+                            .map(Optional::get)
+                            .map(Alloc::getVariable)
+                            .collect(toList());
+                    heap.free(referencedVars);
                 }
             } else if (stmt instanceof Call) {
                 Function called = functions.get(((Call) stmt).getFunction());
