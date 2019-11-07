@@ -17,14 +17,15 @@ import java.util.stream.IntStream;
 import static com.parisoft.pa65.util.VariableUtils.functionOf;
 import static java.util.Collections.emptyList;
 import static java.util.Comparator.comparing;
+import static java.util.Comparator.reverseOrder;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 
 public class Heap {
 
-    private final Map<String, List<Block>> tmpHeapByFunction = new HashMap<>();
-    private final Map<String, List<Block>> execHeapBySegment = new HashMap<>();
-    private final Map<String, List<Block>> finalHeapBySegment = new LinkedHashMap<>();
+    private final Map<String, List<Block>> tmpHeapByFunction = new HashMap<>(); // temporary heap to save the state of the execution heap when jumping to another function
+    private final Map<String, List<Block>> execHeapBySegment = new HashMap<>(); // execution heap: call to palloc or pfree creates or removes a block during processing
+    private final Map<String, List<Block>> finalHeapBySegment = new LinkedHashMap<>(); // blocks for processed functions goes here
     private final Map<String, List<Ref>> refsByFunction = new LinkedHashMap<>();
     private final Map<String, List<Ref>> refsByTarget = new LinkedHashMap<>();
     private final ArrayDeque<Function> stack = new ArrayDeque<>();
@@ -81,6 +82,7 @@ public class Heap {
 
     public void free(Function function) {
         free();
+
         execHeapBySegment.values()
                 .stream()
                 .flatMap(List::stream)
@@ -142,15 +144,12 @@ public class Heap {
             heap.add(i, free);
         }
 
-        if (toHeap.stream().anyMatch(block1 -> Objects.equals(block.getVariable(), block1.getVariable()))) {
-            return;
+        if (toHeap.stream().noneMatch(block1 -> Objects.equals(block.getVariable(), block1.getVariable()))) {
+            block.setFinished(true);
+            toHeap.add(block);
         }
-
-        block.setFinished(true);
-        toHeap.add(block);
     }
 
-    @SuppressWarnings("SuspiciousListRemoveInLoop")
     public void allocByFirstFit(Alloc alloc) {
         List<Block> heap = execHeapBySegment.computeIfAbsent(alloc.getSegment(), s -> newHeap(true));
 
@@ -165,47 +164,59 @@ public class Heap {
                 .orElse(null);
 
         if (finalBlock != null) {
-            heap.add(finalBlock);
-            realloc(heap);
-            return;
+            allocFinalBlock(finalBlock, heap);
+        } else {
+            allocNewBlock(new Block(alloc), heap, 0);
+        }
+    }
+
+    private void allocFinalBlock(Block block, List<Block> heap) {
+        heap.add(block);
+        heap.removeIf(Block::isFree);
+        heap.sort(comparing(Block::getOffset).thenComparing(Block::isFinished, reverseOrder()));
+
+        List<Block> toReallocate = new ArrayList<>();
+
+        for (int i = heap.indexOf(block) + 1; i < heap.size(); i++) {
+            Block ahead = heap.get(i);
+
+            if (ahead.overlaps(block)) {
+                if (ahead.isFinished()) {
+                    throw new IllegalStateException("Two finalized blocks overlaps: " + ahead + " and " + block);
+                }
+
+                toReallocate.add(ahead);
+            } else {
+                break;
+            }
         }
 
-        Block newBlock = new Block(alloc);
+        heap.removeAll(toReallocate);
+        fillFreeSpaces(heap);
+        int validIndex = heap.indexOf(block) + 1;
+        toReallocate.forEach(overlapped -> allocNewBlock(overlapped, heap, validIndex));
+    }
 
-        if (heap.isEmpty()) {
-            heap.add(newBlock);
-            return;
-        }
+    private void allocNewBlock(Block block, List<Block> heap, int fromIndex) {
+        for (int i = fromIndex; i < heap.size(); i++) {
+            Block allocated = heap.get(i);
 
-        for (int i = 0; i < heap.size(); i++) {
-            Block block = heap.get(i);
-
-            if (block.isFree()) {
-                if (block.getSize() > newBlock.getSize()) {
-                    block.subSize(newBlock);
-                } else if (block.getSize() == newBlock.getSize()) {
-                    heap.remove(i);
+            if (allocated.isFree()) {
+                if (allocated.getSize() > block.getSize()) {
+                    allocated.subSize(block);
+                    heap.add(i, block);
+                } else if (allocated.getSize() == block.getSize()) {
+                    heap.set(i, block);
                 } else {
                     continue;
                 }
 
-                newBlock.setOffset(block.getOffset());
-                block.setOffset(newBlock.getOffset() + newBlock.getSize());
-                heap.add(i, newBlock);
+                block.setOffset(allocated.getOffset());
+                allocated.setOffset(block.getOffset() + block.getSize());
 
                 return;
             }
         }
-    }
-
-    private void realloc(List<Block> heap) {
-        List<Block> newBlocks = heap.stream()
-                .filter(Block::isNotFree)
-                .filter(Block::isNotFinished)
-                .collect(toList());
-        heap.removeIf(Block::isNotFinished);
-        fillFreeSpaces(heap);
-        newBlocks.stream().map(Alloc::new).forEach(this::allocByFirstFit);
     }
 
     private static void fillFreeSpaces(List<Block> heap) {
@@ -215,8 +226,6 @@ public class Heap {
             heap.add(free);
             return;
         }
-
-        heap.sort(comparing(Block::getOffset));
 
         for (int i = 0; i < heap.size(); i++) {
             Block prev;

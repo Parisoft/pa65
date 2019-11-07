@@ -86,6 +86,10 @@ public class Block {
         }
     }
 
+    public boolean overlaps(Block that) {
+        return (this.offset >= that.offset && this.offset < that.offset + that.size) || (that.offset >= this.offset && that.offset < this.offset + this.size);
+    }
+
     public String getFunction() {
         return functionOf(variable);
     }
