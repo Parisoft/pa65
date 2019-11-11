@@ -80,24 +80,37 @@ public class PA65 {
     }
 
     public void createHeap() {
-        for (String vector : vectors) {
-            Function function = functions.values()
-                    .stream()
-                    .filter(func -> func.getName().equals(vector))
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("Vector function not found: " + vector));
+        while (true) {
+            try {
+                for (String vector : vectors) {
+                    Function function = functions.values()
+                            .stream()
+                            .filter(func -> func.getName().equals(vector))
+                            .findFirst()
+                            .orElseThrow(() -> new IllegalArgumentException("Vector function not found: " + vector));
 
-            processFunction(function);
+                    processFunction(function);
+                }
+            } catch (Heap.AllocCollisionException e) {
+                heap.clear();
+                continue;
+            }
+
+            break;
         }
     }
 
-    private void processFunction(Function function) {
+    private void processFunction(Function function) throws Heap.AllocCollisionException {
         for (Object stmt : function.getStmts()) {
             if (stmt instanceof Alloc) {
                 heap.allocByFirstFit((Alloc) stmt);
             } else if (stmt instanceof Ref) {
                 heap.addReference(function, (Ref) stmt);
-                allocOf((Ref) stmt).ifPresent(heap::allocByFirstFit);
+                Optional<Alloc> alloc = allocOf((Ref) stmt);
+
+                if (alloc.isPresent()) {
+                    heap.allocByFirstFit(alloc.get());
+                }
             } else if (stmt instanceof Free) {
                 if (((Free) stmt).getVariables().isEmpty()) {
                     heap.free();

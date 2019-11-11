@@ -12,12 +12,6 @@ public class Alloc {
         this.size = size;
     }
 
-    public Alloc(Block block) {
-        segment = block.getSegment();
-        variable = block.getVariable();
-        size = block.getSize();
-    }
-
     public String getSegment() {
         return segment;
     }

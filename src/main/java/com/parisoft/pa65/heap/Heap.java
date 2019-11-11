@@ -8,15 +8,20 @@ import com.parisoft.pa65.pojo.Ref;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import static com.parisoft.pa65.util.VariableUtils.functionOf;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
 import static java.util.Comparator.comparing;
+import static java.util.Comparator.comparingInt;
 import static java.util.Comparator.reverseOrder;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
@@ -28,6 +33,7 @@ public class Heap {
     private final Map<String, List<Block>> finalHeapBySegment = new LinkedHashMap<>(); // blocks for processed functions goes here
     private final Map<String, List<Ref>> refsByFunction = new LinkedHashMap<>();
     private final Map<String, List<Ref>> refsByTarget = new LinkedHashMap<>();
+    private final Map<String, Set<String>> refCollisions = new HashMap<>();
     private final ArrayDeque<Function> stack = new ArrayDeque<>();
 
     public Map<String, List<Block>> getBlocksBySegment() {
@@ -47,6 +53,15 @@ public class Heap {
 
     public ArrayDeque<Function> getStack() {
         return stack;
+    }
+
+    public void clear() {
+        tmpHeapByFunction.clear();
+        execHeapBySegment.clear();
+        finalHeapBySegment.clear();
+        refsByFunction.clear();
+        refsByTarget.clear();
+        stack.clear();
     }
 
     public void addReference(Function function, Ref ref) {
@@ -73,11 +88,10 @@ public class Heap {
         blocks.forEach(block -> free(block, tmpHeap));
     }
 
-    public void load(Function function) {
-        List<Block> blocks = tmpHeapByFunction.remove(function.getName());
-        blocks.stream()
-                .map(Alloc::new)
-                .forEach(this::allocByFirstFit);
+    public void load(Function function) throws AllocCollisionException {
+        for (Block block : tmpHeapByFunction.remove(function.getName())) {
+            allocByFirstFit(block.getAlloc());
+        }
     }
 
     public void free(Function function) {
@@ -150,7 +164,7 @@ public class Heap {
         }
     }
 
-    public void allocByFirstFit(Alloc alloc) {
+    public void allocByFirstFit(Alloc alloc) throws AllocCollisionException {
         List<Block> heap = execHeapBySegment.computeIfAbsent(alloc.getSegment(), s -> newHeap(true));
 
         if (heap.stream().anyMatch(block -> Objects.equals(alloc.getVariable(), block.getVariable()))) {
@@ -170,7 +184,7 @@ public class Heap {
         }
     }
 
-    private void allocFinalBlock(Block block, List<Block> heap) {
+    private void allocFinalBlock(Block block, List<Block> heap) throws AllocCollisionException {
         heap.add(block);
         heap.removeIf(Block::isFree);
         heap.sort(comparing(Block::getOffset).thenComparing(Block::isFinished, reverseOrder()));
@@ -182,7 +196,9 @@ public class Heap {
 
             if (ahead.overlaps(block)) {
                 if (ahead.isFinished()) {
-                    throw new IllegalStateException("Two finalized blocks overlaps: " + ahead + " and " + block);
+                    refCollisions.computeIfAbsent(block.getVariable(), s -> new HashSet<>()).add(ahead.getVariable());
+                    refCollisions.computeIfAbsent(ahead.getVariable(), s -> new HashSet<>()).add(block.getVariable());
+                    throw new AllocCollisionException();
                 }
 
                 toReallocate.add(ahead);
@@ -198,23 +214,62 @@ public class Heap {
     }
 
     private void allocNewBlock(Block block, List<Block> heap, int fromIndex) {
+        Optional<Block> overlapping = refCollisions.getOrDefault(block.getVariable(), emptySet())
+                .stream()
+                .map(variable -> finalHeapBySegment.getOrDefault(block.getSegment(), emptyList()).stream()
+                        .filter(finished -> finished.getVariable().equals(variable))
+                        .findFirst()
+                        .orElse(null))
+                .filter(Objects::nonNull)
+                .max(comparingInt((Block b) -> b.getOffset() + b.getSize()));
+
         for (int i = fromIndex; i < heap.size(); i++) {
             Block allocated = heap.get(i);
 
             if (allocated.isFree()) {
-                if (allocated.getSize() > block.getSize()) {
-                    allocated.subSize(block);
-                    heap.add(i, block);
-                } else if (allocated.getSize() == block.getSize()) {
-                    heap.set(i, block);
+                if (overlapping.isPresent()) {
+                    Block overlapped = overlapping.get();
+
+                    if (allocated.getOffset() + allocated.getSize() >= overlapped.getOffset() + overlapped.getSize() + block.getSize()) {
+                        block.setOffset(overlapped.getOffset() + overlapped.getSize());
+
+                        if (allocated.getOffset() < block.getOffset()) {
+                            Block free = new Block();
+                            free.setOffset(block.getOffset() + block.getSize());
+                            free.setSize(allocated.getOffset() + allocated.getSize() - block.getOffset() - block.getSize());
+                            allocated.setSize(allocated.getSize() - block.getSize() - free.getSize());
+                            heap.add(i + 1, block);
+                            heap.add(i + 2, free);
+                        } else if (allocated.getOffset() > block.getOffset()) {
+                            block.setOffset(allocated.getOffset());
+                            allocated.setOffset(block.getOffset() + block.getSize());
+                            allocated.subSize(block);
+                            heap.add(i, block);
+                        } else {
+                            allocated.setOffset(block.getOffset() + block.getSize());
+                            allocated.subSize(block);
+                            heap.add(i, block);
+                        }
+                    } else {
+                        continue;
+                    }
+
+                    return;
                 } else {
-                    continue;
+                    if (allocated.getSize() > block.getSize()) {
+                        allocated.subSize(block);
+                        heap.add(i, block);
+                    } else if (allocated.getSize() == block.getSize()) {
+                        heap.set(i, block);
+                    } else {
+                        continue;
+                    }
+
+                    block.setOffset(allocated.getOffset());
+                    allocated.setOffset(block.getOffset() + block.getSize());
+
+                    return;
                 }
-
-                block.setOffset(allocated.getOffset());
-                allocated.setOffset(block.getOffset() + block.getSize());
-
-                return;
             }
         }
     }
@@ -301,5 +356,9 @@ public class Heap {
 
     public static String nameOf(String segment) {
         return "heap_" + segment.replaceAll("\\W", "");
+    }
+
+    public static class AllocCollisionException extends Exception {
+
     }
 }

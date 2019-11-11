@@ -5,15 +5,13 @@ import static com.parisoft.pa65.util.VariableUtils.shortNameOf;
 
 public class Block {
 
-    private String variable;
-    private String segment;
     private int offset;
     private int size;
     private boolean finished;
+    private Alloc alloc;
 
     public Block(Alloc alloc) {
-        variable = alloc.getVariable();
-        segment = alloc.getSegment();
+        this.alloc = alloc;
         size = alloc.getSize();
         offset = 0;
         finished = false;
@@ -24,19 +22,11 @@ public class Block {
     }
 
     public String getVariable() {
-        return variable;
-    }
-
-    public void setVariable(String variable) {
-        this.variable = variable;
+        return alloc == null ? null : alloc.getVariable();
     }
 
     public String getSegment() {
-        return segment;
-    }
-
-    public void setSegment(String segment) {
-        this.segment = segment;
+        return alloc == null ? null : alloc.getSegment();
     }
 
     public int getOffset() {
@@ -55,8 +45,12 @@ public class Block {
         this.size = size;
     }
 
+    public Alloc getAlloc() {
+        return alloc;
+    }
+
     public boolean isFree() {
-        return variable == null;
+        return alloc == null;
     }
 
     public boolean isNotFree() {
@@ -91,18 +85,18 @@ public class Block {
     }
 
     public String getFunction() {
-        return functionOf(variable);
+        return alloc == null ? null : functionOf(alloc.getVariable());
     }
 
     public String getShortVariable() {
-        return shortNameOf(variable);
+        return shortNameOf(alloc.getVariable());
     }
 
     @Override
     public String toString() {
         return "Block{" +
-                "variable='" + variable + '\'' +
-                ", segment='" + segment + '\'' +
+                "variable='" + getVariable() + '\'' +
+                ", segment='" + getSegment() + '\'' +
                 ", offset=" + offset +
                 ", size=" + size +
                 ", finished=" + finished +
