@@ -80,6 +80,14 @@ public class Block {
         }
     }
 
+    public int getOffsetPlusSize() {
+        try {
+            return Math.addExact(offset,size);
+        } catch (ArithmeticException e) {
+            return Integer.MAX_VALUE;
+        }
+    }
+
     public boolean overlaps(Block that) {
         return (this.offset >= that.offset && this.offset < that.offset + that.size) || (that.offset >= this.offset && that.offset < this.offset + this.size);
     }

@@ -85,7 +85,11 @@ public class Heap {
                 .filter(this::canDereference)
                 .collect(toList());
         List<Block> tmpHeap = tmpHeapByFunction.computeIfAbsent(function.getName(), s -> newHeap(false));
-        blocks.forEach(block -> free(block, tmpHeap));
+
+        for (Block block : blocks) {
+            free(block);
+            tmpHeap.add(block);
+        }
     }
 
     public void load(Function function) throws AllocCollisionException {
@@ -126,10 +130,6 @@ public class Heap {
     }
 
     private void free(Block block) {
-        free(block, finalHeapBySegment.computeIfAbsent(block.getSegment(), s -> newHeap(false)));
-    }
-
-    private void free(Block block, List<Block> toHeap) {
         List<Block> heap = execHeapBySegment.get(block.getSegment());
         int i = IntStream.range(0, heap.size()).filter(value -> heap.get(value).equals(block)).findFirst().orElse(-1);
 
@@ -158,6 +158,8 @@ public class Heap {
             heap.add(i, free);
         }
 
+        List<Block> toHeap = finalHeapBySegment.computeIfAbsent(block.getSegment(), s -> newHeap(false));
+
         if (toHeap.stream().noneMatch(block1 -> Objects.equals(block.getVariable(), block1.getVariable()))) {
             block.setFinished(true);
             toHeap.add(block);
@@ -185,29 +187,30 @@ public class Heap {
     }
 
     private void allocFinalBlock(Block block, List<Block> heap) throws AllocCollisionException {
-        heap.add(block);
         heap.removeIf(Block::isFree);
-        heap.sort(comparing(Block::getOffset).thenComparing(Block::isFinished, reverseOrder()));
 
-        List<Block> toReallocate = new ArrayList<>();
-
-        for (int i = heap.indexOf(block) + 1; i < heap.size(); i++) {
-            Block ahead = heap.get(i);
-
-            if (ahead.overlaps(block)) {
-                if (ahead.isFinished()) {
-                    refCollisions.computeIfAbsent(block.getVariable(), s -> new HashSet<>()).add(ahead.getVariable());
-                    refCollisions.computeIfAbsent(ahead.getVariable(), s -> new HashSet<>()).add(block.getVariable());
-                    throw new AllocCollisionException();
-                }
-
-                toReallocate.add(ahead);
-            } else {
-                break;
-            }
-        }
+        List<Block> toReallocate = heap.stream()
+                .filter(Block::isNotFinished)
+                .filter(allocated -> allocated.overlaps(block))
+                .collect(toList());
 
         heap.removeAll(toReallocate);
+        heap.add(block);
+        heap.sort(comparing(Block::getOffset).thenComparing(Block::isFinished, reverseOrder()));
+
+        Optional<Block> collision = heap.stream()
+                .filter(Block::isFinished)
+                .filter(finished -> !finished.equals(block))
+                .filter(finished -> finished.overlaps(block))
+                .findFirst();
+
+        if (collision.isPresent()) {
+            Block other = collision.get();
+            refCollisions.computeIfAbsent(block.getVariable(), s -> new HashSet<>()).add(other.getVariable());
+            refCollisions.computeIfAbsent(other.getVariable(), s -> new HashSet<>()).add(block.getVariable());
+            throw new AllocCollisionException();
+        }
+
         fillFreeSpaces(heap);
         int validIndex = heap.indexOf(block) + 1;
         toReallocate.forEach(overlapped -> allocNewBlock(overlapped, heap, validIndex));
@@ -221,7 +224,7 @@ public class Heap {
                         .findFirst()
                         .orElse(null))
                 .filter(Objects::nonNull)
-                .max(comparingInt((Block b) -> b.getOffset() + b.getSize()));
+                .max(comparingInt(Block::getOffsetPlusSize));
 
         for (int i = fromIndex; i < heap.size(); i++) {
             Block allocated = heap.get(i);
@@ -230,23 +233,23 @@ public class Heap {
                 if (overlapping.isPresent()) {
                     Block overlapped = overlapping.get();
 
-                    if (allocated.getOffset() + allocated.getSize() >= overlapped.getOffset() + overlapped.getSize() + block.getSize()) {
-                        block.setOffset(overlapped.getOffset() + overlapped.getSize());
+                    if (allocated.getOffsetPlusSize() >= overlapped.getOffsetPlusSize() + block.getSize()) {
+                        block.setOffset(overlapped.getOffsetPlusSize());
 
                         if (allocated.getOffset() < block.getOffset()) {
                             Block free = new Block();
-                            free.setOffset(block.getOffset() + block.getSize());
-                            free.setSize(allocated.getOffset() + allocated.getSize() - block.getOffset() - block.getSize());
+                            free.setOffset(block.getOffsetPlusSize());
+                            free.setSize(allocated.getOffsetPlusSize() - block.getOffset() - block.getSize());
                             allocated.setSize(allocated.getSize() - block.getSize() - free.getSize());
                             heap.add(i + 1, block);
                             heap.add(i + 2, free);
                         } else if (allocated.getOffset() > block.getOffset()) {
                             block.setOffset(allocated.getOffset());
-                            allocated.setOffset(block.getOffset() + block.getSize());
+                            allocated.setOffset(block.getOffsetPlusSize());
                             allocated.subSize(block);
                             heap.add(i, block);
                         } else {
-                            allocated.setOffset(block.getOffset() + block.getSize());
+                            allocated.setOffset(block.getOffsetPlusSize());
                             allocated.subSize(block);
                             heap.add(i, block);
                         }
@@ -266,7 +269,7 @@ public class Heap {
                     }
 
                     block.setOffset(allocated.getOffset());
-                    allocated.setOffset(block.getOffset() + block.getSize());
+                    allocated.setOffset(block.getOffsetPlusSize());
 
                     return;
                 }
@@ -298,12 +301,12 @@ public class Heap {
 
             prev = heap.get(i - 1);
 
-            if (curr.getOffset() > prev.getOffset() + prev.getSize()) {
+            if (curr.getOffset() > prev.getOffsetPlusSize()) {
                 if (prev.isFree()) {
                     prev.setSize(curr.getOffset() - prev.getOffset());
                 } else {
                     Block free = new Block();
-                    free.setOffset(prev.getOffset() + prev.getSize());
+                    free.setOffset(prev.getOffsetPlusSize());
                     free.setSize(curr.getOffset() - free.getOffset());
                     heap.add(i, free);
                 }
@@ -316,7 +319,7 @@ public class Heap {
             lastBlock.setSize(Integer.MAX_VALUE);
         } else {
             Block free = new Block();
-            free.setOffset(lastBlock.getOffset() + lastBlock.getSize());
+            free.setOffset(lastBlock.getOffsetPlusSize());
             free.setSize(Integer.MAX_VALUE);
             heap.add(heap.size(), free);
         }
