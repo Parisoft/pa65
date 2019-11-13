@@ -56,6 +56,9 @@ public class PA65 {
     public PA65(Collection<File> input) throws IOException {
         parseFunctions(input);
 
+        functions.values()
+                .forEach(function -> function.getStmts().removeIf(o -> o instanceof Call && !functions.containsKey(((Call) o).getFunction())));
+
         List<String> referenced = functions.values()
                 .stream()
                 .map(Function::getStmts)
@@ -63,6 +66,7 @@ public class PA65 {
                 .filter(o -> o instanceof Call)
                 .map(o -> ((Call) o).getFunction())
                 .collect(toList());
+
         this.vectors = functions.keySet()
                 .stream()
                 .filter(func -> !referenced.contains(func))
@@ -80,7 +84,9 @@ public class PA65 {
     }
 
     public void createHeap() {
-        while (true) {
+        int pass = 0;
+
+        while (pass++ < 2) {
             try {
                 for (String vector : vectors) {
                     Function function = functions.values()
@@ -93,10 +99,8 @@ public class PA65 {
                 }
             } catch (Heap.AllocCollisionException e) {
                 heap.clear();
-                continue;
+                pass--;
             }
-
-            break;
         }
     }
 
