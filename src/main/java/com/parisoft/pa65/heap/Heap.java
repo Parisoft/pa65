@@ -16,6 +16,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static com.parisoft.pa65.util.VariableUtils.functionOf;
 import static java.util.Collections.emptyList;
@@ -219,8 +220,8 @@ public class Heap {
     private void allocNewBlock(Block block, List<Block> heap, int fromIndex) {
         Optional<Block> overlapping = refCollisions.getOrDefault(block.getVariable(), emptySet())
                 .stream()
-                .map(variable -> finalHeapBySegment.getOrDefault(block.getSegment(), emptyList()).stream()
-                        .filter(finished -> finished.getVariable().equals(variable))
+                .map(variable -> Stream.concat(heap.stream(), finalHeapBySegment.getOrDefault(block.getSegment(), emptyList()).stream())
+                        .filter(other -> Objects.equals(other.getVariable(), variable))
                         .findFirst()
                         .orElse(null))
                 .filter(Objects::nonNull)
