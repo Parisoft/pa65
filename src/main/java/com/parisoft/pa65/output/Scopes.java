@@ -58,7 +58,7 @@ public class Scopes {
         scopeByName.values()
                 .stream()
                 .filter(scope -> scope.refs.size() > 0)
-                .sorted(comparingInt((Scope scope) -> scope.refs.size()).reversed())
+                .sorted(comparingInt(scope -> scope.refs.size()))
                 .forEach(scope -> addDependencies(scope.name, scopeByName, scopes));
 
         scopes.forEach(scope -> {
