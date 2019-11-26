@@ -81,7 +81,7 @@ public class Macros {
     private void buildFunc(StringBuilder builder) {
         builder.append("\t.macro .func name").append(lineSeparator())
                 .append("\t.if .xmatch(name, ").append(vector).append(")").append(lineSeparator())
-                .append("\t__PA65_ALLOC_HEAP__").append(lineSeparator())
+                .append("\t").append(Segments.PA_65_ALLOC_HEAP).append(lineSeparator())
                 .append("\t.endif").append(lineSeparator())
                 .append("\t.define .palloc(seg,var,size) var = name::var").append(lineSeparator())
                 .append("name:").append(lineSeparator())
