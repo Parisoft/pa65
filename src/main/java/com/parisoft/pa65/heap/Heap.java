@@ -119,15 +119,13 @@ public class Heap {
     }
 
     public void free(List<String> variables) {
-        for (String variable : variables) {
-            execHeapBySegment.values()
-                    .stream()
-                    .flatMap(List::stream)
-                    .filter(block -> variable.equals(block.getVariable()))
-                    .filter(this::canDereference)
-                    .findFirst()
-                    .ifPresent(this::free);
-        }
+        execHeapBySegment.values()
+                .stream()
+                .flatMap(List::stream)
+                .filter(block -> variables.contains(block.getVariable()))
+                .filter(this::canDereference)
+                .sorted(comparing(Block::getOffset))
+                .forEach(this::free);
     }
 
     private void free(Block block) {
