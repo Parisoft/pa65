@@ -34,7 +34,7 @@ public class Heap {
     private final Map<String, List<Block>> finalHeapBySegment = new LinkedHashMap<>(); // blocks for processed functions goes here
     private final Map<String, List<Ref>> refsByFunction = new LinkedHashMap<>();
     private final Map<String, List<Ref>> refsByTarget = new LinkedHashMap<>();
-    private final Map<String, Set<String>> refCollisions = new HashMap<>();
+    private final Map<String, Set<String>> excludents = new HashMap<>();
     private final ArrayDeque<Function> stack = new ArrayDeque<>();
 
     public Map<String, List<Block>> getBlocksBySegment() {
@@ -205,8 +205,8 @@ public class Heap {
 
         if (collision.isPresent()) {
             Block other = collision.get();
-            refCollisions.computeIfAbsent(block.getVariable(), s -> new HashSet<>()).add(other.getVariable());
-            refCollisions.computeIfAbsent(other.getVariable(), s -> new HashSet<>()).add(block.getVariable());
+            excludents.computeIfAbsent(block.getVariable(), s -> new HashSet<>()).add(other.getVariable());
+            excludents.computeIfAbsent(other.getVariable(), s -> new HashSet<>()).add(block.getVariable());
             throw new AllocCollisionException();
         }
 
@@ -216,7 +216,16 @@ public class Heap {
     }
 
     private void allocNewBlock(Block block, List<Block> heap, int fromIndex) {
-        Optional<Block> overlapping = refCollisions.getOrDefault(block.getVariable(), emptySet())
+        heap.stream()
+                .filter(block1 -> !block1.equals(block))
+                .filter(block1 -> Objects.equals(block.getFunction(), block1.getFunction()))
+                .filter(block1 -> Objects.equals(block.getSegment(), block1.getSegment()))
+                .forEach(block1 -> {
+                    excludents.computeIfAbsent(block.getVariable(), s -> new HashSet<>()).add(block1.getVariable());
+                    excludents.computeIfAbsent(block1.getVariable(), s -> new HashSet<>()).add(block.getVariable());
+                });
+
+        Optional<Block> overlapping = excludents.getOrDefault(block.getVariable(), emptySet())
                 .stream()
                 .map(variable -> Stream.concat(heap.stream(), finalHeapBySegment.getOrDefault(block.getSegment(), emptyList()).stream())
                         .filter(other -> Objects.equals(other.getVariable(), variable))
@@ -252,6 +261,17 @@ public class Heap {
                             allocated.subSize(block);
                             heap.add(i, block);
                         }
+                    } else if (block.getFunction().equals(overlapped.getFunction()) // only alloc before overlapped if from same function
+                            && allocated.getSize() >= block.getSize() && allocated.getOffset() + block.getSize() <= overlapped.getOffset()) {
+                        if (allocated.getSize() > block.getSize()) {
+                            allocated.subSize(block);
+                            heap.add(i, block);
+                        } else if (allocated.getSize() == block.getSize()) {
+                            heap.set(i, block);
+                        }
+
+                        block.setOffset(allocated.getOffset());
+                        allocated.setOffset(block.getOffsetPlusSize());
                     } else {
                         continue;
                     }
