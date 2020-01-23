@@ -144,19 +144,9 @@ public class PA65 {
                     continue;
                 }
 
-                if (((Call) stmt).isJump()) {
-                    heap.save(function);
-                } else {
-                    stack.push(function);
-                }
-
+                stack.push(function);
                 processFunction(called);
-
-                if (((Call) stmt).isJump()) {
-                    heap.load(function);
-                } else {
-                    stack.poll();
-                }
+                stack.poll();
             }
         }
 
