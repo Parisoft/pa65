@@ -218,7 +218,8 @@ public class Heap {
     private void allocNewBlock(Block block, List<Block> heap, int fromIndex) {
         heap.stream()
                 .filter(block1 -> !block1.equals(block))
-                .filter(block1 -> Objects.equals(block.getFunction(), block1.getFunction()))
+                .filter(block1 -> Objects.equals(block.getFunction(), block1.getFunction())
+                        || refsByFunction.getOrDefault(block.getFunction(), emptyList()).stream().anyMatch(ref -> Objects.equals(ref.getTargetVar(), block1.getVariable())))
                 .filter(block1 -> Objects.equals(block.getSegment(), block1.getSegment()))
                 .forEach(block1 -> {
                     excludents.computeIfAbsent(block.getVariable(), s -> new HashSet<>()).add(block1.getVariable());
