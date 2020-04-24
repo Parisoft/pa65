@@ -186,9 +186,9 @@ public class PA65 {
                     if ((matcher = FUNC_OPEN_PATTERN.matcher(line)).matches()) {
                         function = new Function(matcher.group(1));
                         functions.put(function.getName(), function);
+                    } else if (!TABLE_PATTERN.matcher(line).matches()) {
+                        continue;
                     }
-
-                    continue;
                 }
 
                 if ((matcher = ALLOC_PATTERN.matcher(line)).matches()) {
