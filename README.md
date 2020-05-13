@@ -18,7 +18,7 @@ Parisoft Allocator for ca65<br>
 
 ## Directives
 
-### func(name)
+### .func(name)
 Declare a function with the given name.<br>
 The function must terminate with `.endfunc`.
 #### Parameters
@@ -31,7 +31,7 @@ rts
 ```
 ___
 
-### palloc(seg,var,size)
+### .palloc(seg,var,size)
 Allocate some bytes of a variable into a segment.
 #### Parameters
 * **seg** - The name of a segment to allocate into. The directives `.zeropage` and `.bss` can also be used. 
@@ -54,7 +54,7 @@ jmp foo
 ```
 ___
 
-### pfree(var1 ... varN)
+### .pfree(var1 ... varN)
 Free the memory space allocated by some variables.
 #### Parameters
 * **var1...varN** - The name of the variable(s) to free
@@ -68,5 +68,33 @@ Free the memory space allocated by some variables.
 .palloc "SEG1", acme, 1 ; reuse the space freed by tmp1
 ; some code here
 rts
+.endfunc
+```
+___
+
+### pref(v1,v2)
+Create a reference of a variable defined on another function.<br>
+Useful to preset the parameters of a function.
+#### Parameters
+* **v1** - The name of the referer variable
+* **v2** - The name of the referee variable
+#### Example
+```s
+.func foo
+.palloc .zeropage, acme, 1
+; some code here
+.enfunc
+
+.func bar
+.pref acme, foo::acme ; make a reference of foo.acme
+jsr foo ; just call foo as the parameter is alread set by the callee (baz)
+; some code here
+.endfunc
+
+.func baz
+; call bar passing 1 into acme parameter
+lda #1
+sta bar::acme
+jmp bar
 .endfunc
 ```
