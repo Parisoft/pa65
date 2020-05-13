@@ -101,7 +101,7 @@ jmp bar
 ___
 
 ### .ftable(name,funcs)
-Declare a table of functions. See [jtx](jtx) and [jty](jty).
+Declare a table of functions. See [jtx](###jtx) and [###jty](jty).
 #### Parameters
 * **name** - The name of the table
 * **funcs** - Array of functions
@@ -124,7 +124,60 @@ Declare a table of functions. See [jtx](jtx) and [jty](jty).
 ```
 ___
 
-### jtx
+### jtx _table_
+Jump to a function referenced by a `.ftable` at index `X` using RTS trick.
+#### Parameters
+* **table** - The name of function table declared as `.ftable`
+#### Example
+```s
+.linecont+
+
+.func switch
+.palloc .zeropage, idx, 1
+ldx idx
+jtx choose_foo_or_bar ; jump to foo if idx is 0; jump to bar if idx is 1
+.endfunc
+
+.func foo
+; some code here
+.endfunc
+
+.func bar
+; some code here
+.endfunc
+
+.ftable choose_foo_or_bar, {\
+   foo-1,\
+   bar-1\
+}
+```
 ___
 
 ### jty
+Jump to a function referenced by a `.ftable` at index `Y` using RTS trick.
+#### Parameters
+* **table** - The name of function table declared as `.ftable`
+#### Example
+```s
+.linecont+
+
+.func switch
+.palloc .zeropage, idx, 1
+ldy idx
+jty choose_foo_or_bar ; jump to foo if idx is 0; jump to bar if idx is 1
+.endfunc
+
+.func foo
+; some code here
+.endfunc
+
+.func bar
+; some code here
+.endfunc
+
+.ftable choose_foo_or_bar, {\
+   foo-1,\
+   bar-1\
+}
+```
+___
