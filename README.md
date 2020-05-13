@@ -19,7 +19,7 @@ Parisoft Allocator for ca65<br>
 ## Directives
 * [.func](#funcname)
 * [.palloc](#pallocsegvarsize)
-* [.pfree](#pfreevar1-varn)
+* [.pfree](#pfreevar1--varn)
 * [.pref](#prefv1v2)
 * [.ftable](#ftablenamefuncs)
 * [jtx](#jtx-table)
