@@ -101,7 +101,7 @@ jmp bar
 ___
 
 ### .ftable(name,funcs)
-Declare a table of functions. See [jtx](###jtx) and [jty](###jty).
+Declare a table of functions. See [jtx](#jtx-table) and [jty](#jty-table).
 #### Parameters
 * **name** - The name of the table
 * **funcs** - Array of functions
@@ -127,7 +127,7 @@ ___
 ### jtx _table_
 Jump to a function referenced by a `.ftable` at index `X` using RTS trick.
 #### Parameters
-* **table** - The name of function table declared as `.ftable`
+* **table** - The name of a function table declared as [.ftable](#ftablenamefuncs)
 #### Example
 ```s
 .linecont+
@@ -156,7 +156,7 @@ ___
 ### jty _table_
 Jump to a function referenced by a `.ftable` at index `Y` using RTS trick.
 #### Parameters
-* **table** - The name of function table declared as `.ftable`
+* **table** - The name of a function table declared as [.ftable](#ftablenamefuncs)
 #### Example
 ```s
 .linecont+
