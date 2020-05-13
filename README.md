@@ -72,7 +72,7 @@ rts
 ```
 ___
 
-### pref(v1,v2)
+### .pref(v1,v2)
 Create a reference of a variable defined on another function.<br>
 Useful to preset the parameters of a function.
 #### Parameters
@@ -92,9 +92,39 @@ jsr foo ; just call foo as the parameter is alread set by the callee (baz)
 .endfunc
 
 .func baz
-; call bar passing 1 into acme parameter
+; call bar passing 1 to the acme parameter
 lda #1
 sta bar::acme
 jmp bar
 .endfunc
 ```
+___
+
+### .ftable(name,funcs)
+Declare a table of functions. See [jtx](jtx) and [jty](jty).
+#### Parameters
+* **name** - The name of the table
+* **funcs** - Array of functions
+#### Example
+```s
+.linecont+
+
+.func foo
+; some code here
+.endfunc
+
+.func bar
+; some code here
+.endfunc
+
+.ftable choose_foo_or_bar, {\
+   foo-1,\
+   bar-1\
+}
+```
+___
+
+### jtx
+___
+
+### jty
