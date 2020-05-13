@@ -17,6 +17,13 @@ Parisoft Allocator for ca65<br>
 1. Just assembly/link your project as you've used to do
 
 ## Directives
+* [.func](#funcname)
+* [.palloc](#pallocsegvarsize)
+* [.pfree](#pfreevar1varn)
+* [.pref](#pfrefv1v2)
+* [.ftable](#ftablenamefuncs)
+* [jtx](#jtx-table)
+* [jty](#jty-table)
 
 ### .func(name)
 Declare a function with the given name.<br>
