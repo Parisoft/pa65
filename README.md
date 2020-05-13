@@ -12,11 +12,12 @@ Parisoft Allocator for ca65<br>
       ```
 1. Call pa65 with your source files to generate the `.inc` file above:
    - ```bash
-      java -jar pa65-xy.jar -o pa65.inc file1.s file2.s ... fileN.s
+      java -jar pa65-xy.jar -o pa65.inc file1.s ... fileN.s
       ```
 1. Just assembly/link your project as you've used to do
 
 ## Directives
+
 ### func(name)
 Declare a function with the given name.<br>
 The function must terminate with `.endfunc`.
@@ -28,10 +29,12 @@ The function must terminate with `.endfunc`.
 rts
 .endfunc
 ```
+___
+
 ### palloc(seg,var,size)
 Allocate some bytes of a variable into a segment.
 #### Parameters
-* **seg** - The name of a segment to allocate into
+* **seg** - The name of a segment to allocate into. The directives `.zeropage` and `.bss` can also be used. 
 * **var** - The name of the variable
 * **size** - The number of bytes to allocate
 #### Example
@@ -49,4 +52,21 @@ sta foo::acme
 jmp foo
 .endfunc
 ```
+___
+
+### pfree(var1 ... varN)
+Free the memory space allocated by some variables.
+#### Parameters
+* **var1...varN** - The name of the variable(s) to free
+#### Example
+```s
+.func foo
+.palloc "SEG1", tmp1, 1
+.palloc "SEG2", tmp2, 1
+; some code here
+.pfree tmp1, tmp2 ; free the space allocated by tmp1 and tmp2
+.palloc "SEG1", acme, 1 ; reuse the space freed by tmp1
+; some code here
+rts
+.endfunc
 ```
