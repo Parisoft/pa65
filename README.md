@@ -19,12 +19,12 @@ Parisoft Allocator for ca65<br>
 ## Directives
 * [.func](#funcname)
 * [.palloc](#pallocsegvarsize)
-* [.pfree](#pfreevar1varn)
-* [.pref](#pfrefv1v2)
+* [.pfree](#pfreevar1-varn)
+* [.pref](#prefv1v2)
 * [.ftable](#ftablenamefuncs)
 * [jtx](#jtx-table)
 * [jty](#jty-table)
-
+___
 ### .func(name)
 Declare a function with the given name.<br>
 The function must terminate with `.endfunc`.
@@ -37,7 +37,6 @@ rts
 .endfunc
 ```
 ___
-
 ### .palloc(seg,var,size)
 Allocate some bytes of a variable into a segment.
 #### Parameters
@@ -60,7 +59,6 @@ jmp foo
 .endfunc
 ```
 ___
-
 ### .pfree(var1 ... varN)
 Free the memory space allocated by some variables.
 #### Parameters
@@ -78,7 +76,6 @@ rts
 .endfunc
 ```
 ___
-
 ### .pref(v1,v2)
 Create a reference of a variable defined on another function.<br>
 Useful to preset the parameters of a function.
@@ -106,7 +103,6 @@ jmp bar
 .endfunc
 ```
 ___
-
 ### .ftable(name,funcs)
 Declare a table of functions. See [jtx](#jtx-table) and [jty](#jty-table).
 #### Parameters
@@ -130,7 +126,6 @@ Declare a table of functions. See [jtx](#jtx-table) and [jty](#jty-table).
 }
 ```
 ___
-
 ### jtx _table_
 Jump to a function referenced by a `.ftable` at index `X` using RTS trick.
 #### Parameters
@@ -159,7 +154,6 @@ jtx choose_foo_or_bar ; jump to foo if idx is 0; jump to bar if idx is 1
 }
 ```
 ___
-
 ### jty _table_
 Jump to a function referenced by a `.ftable` at index `Y` using RTS trick.
 #### Parameters
