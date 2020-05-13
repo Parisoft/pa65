@@ -45,7 +45,7 @@ public class PA65 {
     private static final Pattern ALLOC_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?\\.palloc\\s+([^,\\s]+)\\s*,\\s*(\\w+)\\s*,\\s*([\\d$%]+).*", CASE_INSENSITIVE);
     private static final Pattern REF_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?\\.pref\\s+(\\w+)\\s*,\\s*(\\w+::\\w+).*", CASE_INSENSITIVE);
     private static final Pattern CALL_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?(jsr|jmp|jsl|jml|jeq|jne|jmi|jpl|jcs|jcc|jvs|jvc|jtx|jty)\\s+(\\w+)(?:[\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
-    private static final Pattern TABLE_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?\\.func_table\\s+(\\w+)\\s*,\\s*\\{?\\s*(\\s*,?\\s*\\w+)*[}\\\\]?(?:[\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
+    private static final Pattern TABLE_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?\\.ftable\\s+(\\w+)\\s*,\\s*\\{?\\s*(\\s*,?\\s*\\w+)*[}\\\\]?(?:[\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
     private static final Pattern FREE_PATTERN = Pattern.compile("(?:@?\\w*:?\\s*)?\\.pfree(?:\\s+(\\w+)(?:\\s*,\\s*(\\w+))*)?(?:[\\s;\\\\*]+.*)?", CASE_INSENSITIVE);
     private static final Pattern COMMA_PATTERN = Pattern.compile(",");
 
