@@ -48,7 +48,6 @@ Allocate some bytes of a variable into a segment.
 .func foo
 .palloc .zeropage, acme, 1 ; allocate 1 byte in zp for acme
 ; some code here
-rts
 .endfunc
 
 .palloc bar
@@ -72,7 +71,6 @@ Free the memory space allocated by some variables.
 .pfree tmp1, tmp2 ; free the space allocated by tmp1 and tmp2
 .palloc "SEG1", acme, 1 ; reuse the space freed by tmp1
 ; some code here
-rts
 .endfunc
 ```
 ___
