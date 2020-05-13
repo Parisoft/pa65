@@ -101,7 +101,7 @@ jmp bar
 ___
 
 ### .ftable(name,funcs)
-Declare a table of functions. See [jtx](###jtx) and [###jty](jty).
+Declare a table of functions. See [jtx](###jtx) and [jty](###jty).
 #### Parameters
 * **name** - The name of the table
 * **funcs** - Array of functions
@@ -153,7 +153,7 @@ jtx choose_foo_or_bar ; jump to foo if idx is 0; jump to bar if idx is 1
 ```
 ___
 
-### jty
+### jty _table_
 Jump to a function referenced by a `.ftable` at index `Y` using RTS trick.
 #### Parameters
 * **table** - The name of function table declared as `.ftable`
