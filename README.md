@@ -7,7 +7,7 @@ Parisoft Allocator for ca65<br>
 1. Download the latest version at https://github.com/Parisoft/pa65/releases.
 1. Declare all functions and variables using [pa65 directives](#directives).
 1. Choose a file name like `pa65.inc` and include it in all your source files:
-   - ```s
+   - ```assembly
       .include "pa65.inc"
       ```
 1. Call pa65 with your source files to generate the `.inc` file above:
@@ -17,3 +17,4 @@ Parisoft Allocator for ca65<br>
 1. Just assembly/link your project as you've used to do
 
 ## Directives
+### func
